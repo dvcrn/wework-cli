@@ -22,10 +22,11 @@ setuptools.setup(
     install_requires=[
         'requests>=2.26.0',
         'argparse>=1.4.0',
+        'beautifulsoup4>=4.12.3'
     ],
     entry_points={
         'console_scripts': [
-            'wework=bookwework.bookWework:main',
+            'wework=cli:main',
         ],
     },
 )

@@ -2,7 +2,7 @@ import requests
 from datetime import datetime, timedelta
 import argparse
 import sys
-from weworkauth import WeWorkAuth
+from .auth import WeWorkAuth
 
 
 class SharedWorkspaceResponse:
