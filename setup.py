@@ -25,7 +25,7 @@ setuptools.setup(
     ],
     entry_points={
         'console_scripts': [
-            'bookwework=bookwework.bookWework:main',
+            'wework=bookwework.bookWework:main',
         ],
     },
 )
