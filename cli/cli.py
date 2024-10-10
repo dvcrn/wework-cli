@@ -153,6 +153,7 @@ class Seat:
         self.available = data['available']
 
 
+
 class WeWork: 
 
     def __init__(self, authorization, wework_auth ):
@@ -185,10 +186,14 @@ class WeWork:
             return js
         else:
             print(f"Request failed with status code: {response.status_code}")
+            print(response.text)
             return None
-
     
-    def mxg_poll_quote(self, date_str, location_id, reservable_id):
+    def mxg_poll_quote(self, date_str, location_id, reservable_id, location):
+        start_datetime = f"{date_str}T00:00:00{location.timezone_offset}"
+        end_datetime = f"{date_str}T23:59:59{location.timezone_offset}"
+
+
         url = 'https://members.wework.com/workplaceone/api/ext-booking/mxg-poll-quote?APIen=0'
         data = {
             "reservableId": reservable_id,
@@ -201,39 +206,45 @@ class WeWork:
                 "startTimeFormatted": "08:30:00 AM",
                 "endTimeFormatted": "20:00:00 PM",
                 "floorAddress": "",
-                "locationAddress": "6-12-18 Jingumae",
+                "locationAddress": location.address.line1,
                 "creditsUsed": "0",
                 "Capacity": "1",
-                "TimezoneUsed": "GMT +09:00",
-                "TimezoneIana": "Asia/Tokyo",
-                "TimezoneWin": "Tokyo Standard Time",
+                "TimezoneUsed": f"GMT {location.timezone_offset}",
+                "TimezoneIana": location.time_zone,
+                "TimezoneWin": location.time_zone_win_id,
                 "startDateTime": f"{date_str} 08:30",
                 "endDateTime": f"{date_str} 20:00",
-                "locationName": "Iceberg",
-                "locationCity": "Tokyo",
-                "locationCountry": "JPN",
-                "locationState": ""
+                "locationName": location.name,
+                "locationCity": location.address.city,
+                "locationCountry": location.address.country,
+                "locationState": location.address.state
             },
             "coworkingPropertyId": 0,
             "locationId": location_id,
             "Notes": {
-                "locationAddress": "6-12-18 Jingumae",
-                "locationCity": "Tokyo",
-                "locationState": "",
-                "locationCountry": "JPN",
-                "locationName": "Iceberg"
+                "locationAddress": location.address.line1,
+                "locationCity": location.address.city,
+                "locationState": location.address.state,
+                "locationCountry": location.address.country,
+                "locationName": location.name
             },
             "isUpdateBooking": False,
             "reservationId": "",
-            "startTime": f"{date_str}T00:00:00+09:00",
-            "endTime": f"{date_str}T23:59:59+09:00"
+            "startTime": start_datetime,
+            "endTime": end_datetime
         }
+
         return self.do_request('post', url, data)
 
-    def post_booking(self, date_str, reservable_id, location_id):
+    def post_booking(self, date_str, reservable_id, location_id, location):
+        start_datetime = f"{date_str}T00:00:00{location.timezone_offset}"
+        end_datetime = f"{date_str}T23:59:59{location.timezone_offset}"
+
         url = 'https://members.wework.com/workplaceone/api/ext-booking/post-booking?APIen=0'
-        quote = self.mxg_poll_quote(date_str, location_id, reservable_id)
+        quote = self.mxg_poll_quote(date_str, location_id, reservable_id, location)
         if not quote:
+            print("Invalid quote response")
+            print(quote)
             return None
 
         data = {
@@ -246,52 +257,45 @@ class WeWork:
             "TriggerCalenderEvent": True,
             "mailData": {
                 "dayFormatted": datetime.strptime(date_str, "%Y-%m-%d").strftime("%A, %B %d"),
-                "startTimeFormatted": "08:30 AM",
+                "startTimeFormatted": "08:30:00 AM",
                 "endTimeFormatted": "20:00 PM",
                 "floorAddress": "",
-                "locationAddress": "2-24-12 Shibuya",
+                "locationAddress": location.address.line1,
                 "creditsUsed": "0",
                 "Capacity": "1",
-                "TimezoneUsed": "GMT +09:00",
-                "TimezoneIana": "Asia/Tokyo",
-                "TimezoneWin": "Tokyo Standard Time",
+                "TimezoneUsed": f"GMT {location.timezone_offset}",
+                "TimezoneIana": location.time_zone,
+                "TimezoneWin": location.time_zone_win_id,
                 "startDateTime": f"{date_str} 08:30",
                 "endDateTime": f"{date_str} 20:00",
-                "locationName": "Shibuya Scramble Square",
-                "locationCity": "Tokyo",
-                "locationCountry": "JPN",
-                "locationState": ""
+                "locationName": location.name,
+                "locationCity": location.address.city,
+                "locationCountry": location.address.country,
+                "locationState": location.address.state
             },
             "coworkingPropertyId": 0,
             "applicationType": "WorkplaceOne",
             "platformType": "WEB",
             "locationId": location_id,
             "Notes": {
-                "locationAddress": "2-24-12 Shibuya",
-                "locationCity": "Tokyo",
-                "locationState": "",
-                "locationCountry": "JPN",
-                "locationName": "Shibuya Scramble Square"
+                "locationAddress": location.address.line1,
+                "locationCity": location.address.city,
+                "locationState": location.address.state,
+                "locationCountry": location.address.country,
+                "locationName": location.name
             },
             "isUpdateBooking": False,
             "reservationId": "",
-            "startTime": f"{date_str}T00:00:00+09:00",
-            "endTime": f"{date_str}T23:59:59+09:00"
+            "startTime": start_datetime,
+            "endTime": end_datetime
         }
         res = self.do_request('post', url, data)
 
         if res:
             return BookSpaceResponse(res)
+        else:
+            print(res)
 
-        return None
-
-    def get_locations_by_geo(self, city):
-        url = f'https://members.wework.com/workplaceone/api/wework-yardi/ondemand/get-locations-by-geo?isAuthenticated=true&city={city}&isOnDemandUser=false&isWeb=true'
-        params = {}
-        
-        response = self.do_request('get', url, params)
-        if response:
-            return LocationsByGeoResponse(response)
         return None
 
     def get_available_spaces(self, date_str, location_uuid):
@@ -301,7 +305,6 @@ class WeWork:
         if response:
             return SharedWorkspaceResponse(response)
         return None
-    
 
 def main():
     parser = argparse.ArgumentParser(description="WeWork Booking CLI")
@@ -321,10 +324,9 @@ def main():
 
     if args.action == 'book':
         if not args.location_uuid:
-            print("Error: --location-uuid) are required for booking.")
+            print("Error: --location-uuid is required for booking.")
             sys.exit(1)
 
-        
         # Parse the date argument
         dates = []
         if '~' in args.date:
@@ -367,48 +369,11 @@ def main():
             space = spaces.workspaces[0]
 
             print(f"Attempting to book: {space.location.name} for {date}")
-            book_res = ww.post_booking(date, space.uuid, space.location.uuid)
+            book_res = ww.post_booking(date, space.uuid, space.location.uuid, space.location)
+            print(book_res)
+
             if book_res.booking_processing_status == "BookingSuccess":
-                print(f"Booking successful!")
-
-    elif args.action == 'locations':
-        if not args.city:
-            print("Error: --city is required for location lookup.")
-            sys.exit(1)
-
-        res = ww.get_locations_by_geo(args.city)
-
-        for location in res.locations:
-            print(f"Location: {location.name}")
-            print(f"UUID: {location.uuid}")
-            print(f"Latitude: {location.latitude}")
-            print(f"Longitude: {location.longitude}")
-            print("---")
-
-    elif args.action == 'spaces':
-        if not args.location_uuid and not args.city:
-            print("Error: --location-uuid or --city is required for spaces lookup.")
-            sys.exit(1)
-
-
-        if args.city:
-            res = ww.get_locations_by_geo(args.city)
-            location_uuid = [location.uuid for location in res.locations]
-        else:
-            location_uuid = args.location_uuid.split(",")
-
-        response = ww.get_available_spaces(args.date, location_uuid)
-
-        if not response or len(response.workspaces) == 0:
-            print("No spaces found, or not available for the given date.")
-            sys.exit(1)
-
-        for space in response.workspaces:
-            print(f"Location: {space.location.name}")
-            print(f"Reservable ID: {space.uuid}")
-            print(f"Location ID: {space.location.uuid}")
-            print(f"Available: {space.seat.available}")
-            print("---")
+                print("Booking successful!")
 
 if __name__ == "__main__":
     main()
