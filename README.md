@@ -52,6 +52,11 @@ Note: You can book multiple dates by using a date range or comma-separated list:
    wework book 2023-06-01,2023-06-03,2023-06-05 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
    
 
+You can also use the `--city` option with the `spaces` action to list available spaces in a specific city:
+
+wework spaces 2023-06-01 --city "New York" --username your_username --password your_password
+
+
 For more information on available options, use:
 
 

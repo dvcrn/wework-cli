@@ -298,6 +298,14 @@ class WeWork:
 
         return None
 
+    def get_locations_by_geo(self, city):
+        url = f'https://members.wework.com/workplaceone/api/wework-yardi/ondemand/get-locations-by-geo?isAuthenticated=true&city={city}&isOnDemandUser=false&isWeb=true'
+        params = {}
+        
+        response = self.do_request('get', url, params)
+        if response:
+            return LocationsByGeoResponse(response)
+        return None
     def get_available_spaces(self, date_str, location_uuid):
         url = f'https://members.wework.com/workplaceone/api/spaces/get-spaces?locationUUIDs={','.join(location_uuid)}&closestCity=&userLatitude=35.6953443&userLongitude=139.7564755&boundnwLat=&boundnwLng=&boundseLat=&boundseLng=&type=0&offset=0&limit=50&roomTypeFilter=&date={date_str}&duration=30&locationOffset=%2B09%3A00&isWeb=true&capacity=0&endDate='
 
@@ -369,11 +377,44 @@ def main():
             space = spaces.workspaces[0]
 
             print(f"Attempting to book: {space.location.name} for {date}")
-            book_res = ww.post_booking(date, space.uuid, space.location.uuid, space.location)
-            print(book_res)
+    elif args.action == 'locations':
+        if not args.city:
+            print("Error: --city is required for location lookup.")
+            sys.exit(1)
 
-            if book_res.booking_processing_status == "BookingSuccess":
-                print("Booking successful!")
+        res = ww.get_locations_by_geo(args.city)
+
+        for location in res.locations:
+            print(f"Location: {location.name}")
+            print(f"UUID: {location.uuid}")
+            print(f"Latitude: {location.latitude}")
+            print(f"Longitude: {location.longitude}")
+            print("---")
+
+    elif args.action == 'spaces':
+        if not args.location_uuid and not args.city:
+            print("Error: --location-uuid or --city is required for spaces lookup.")
+            sys.exit(1)
+
+
+        if args.city:
+            res = ww.get_locations_by_geo(args.city)
+            location_uuid = [location.uuid for location in res.locations]
+        else:
+            location_uuid = args.location_uuid.split(",")
+
+        response = ww.get_available_spaces(args.date, location_uuid)
+
+        if not response or len(response.workspaces) == 0:
+            print("No spaces found, or not available for the given date.")
+            sys.exit(1)
+
+        for space in response.workspaces:
+            print(f"Location: {space.location.name}")
+            print(f"Reservable ID: {space.uuid}")
+            print(f"Location ID: {space.location.uuid}")
+            print(f"Available: {space.seat.available}")
+            print("---")
 
 if __name__ == "__main__":
     main()
