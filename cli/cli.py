@@ -384,12 +384,10 @@ def main():
 
         res = ww.get_locations_by_geo(args.city)
 
+        print("Location".ljust(30) + "UUID".ljust(40) + "Latitude".ljust(15) + "Longitude")
+        print("-" * 95)
         for location in res.locations:
-            print(f"Location: {location.name}")
-            print(f"UUID: {location.uuid}")
-            print(f"Latitude: {location.latitude}")
-            print(f"Longitude: {location.longitude}")
-            print("---")
+            print(f"{location.name[:28].ljust(30)}{location.uuid.ljust(40)}{str(location.latitude)[:13].ljust(15)}{location.longitude}")
 
     elif args.action == 'spaces':
         if not args.location_uuid and not args.city:
@@ -409,12 +407,10 @@ def main():
             print("No spaces found, or not available for the given date.")
             sys.exit(1)
 
+        print("Location".ljust(30) + "Reservable ID".ljust(40) + "Location ID".ljust(40) + "Available")
+        print("-" * 120)
         for space in response.workspaces:
-            print(f"Location: {space.location.name}")
-            print(f"Reservable ID: {space.uuid}")
-            print(f"Location ID: {space.location.uuid}")
-            print(f"Available: {space.seat.available}")
-            print("---")
+            print(f"{space.location.name[:28].ljust(30)}{space.uuid.ljust(40)}{space.location.uuid.ljust(40)}{space.seat.available}")
 
 if __name__ == "__main__":
     main()
