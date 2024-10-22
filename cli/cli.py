@@ -417,7 +417,7 @@ class WeWork:
 
 def main():
     parser = argparse.ArgumentParser(description="WeWork Booking CLI")
-    parser.add_argument('action', choices=['book', 'spaces', 'locations', 'bookings'], help="Action to perform: 'book', 'spaces', 'locations', or 'bookings'")
+    parser.add_argument('action', choices=['book', 'desks', 'locations', 'bookings'], help="Action to perform: 'book', 'desks', 'locations', or 'bookings'")
     parser.add_argument('date', help="Date in YYYY-MM-DD format", nargs='?')
     parser.add_argument('--location-uuid', help="Location ID for booking")
     parser.add_argument('--city', help="City name (required when action is 'geo')")
@@ -490,11 +490,14 @@ def main():
         for location in res.locations:
             print(f"{location.name[:28].ljust(30)}{location.uuid.ljust(40)}{str(location.latitude)[:13].ljust(15)}{location.longitude}")
 
-    elif args.action == 'spaces':
+    elif args.action == 'desks':
         if not args.location_uuid and not args.city:
-            print("Error: --location-uuid or --city is required for spaces lookup.")
+            print("Error: --location-uuid or --city is required for desks lookup.")
             sys.exit(1)
 
+        if not args.date:
+            print("Error: date is required for desks lookup.")
+            sys.exit(1)
 
         if args.city:
             res = ww.get_locations_by_geo(args.city)
