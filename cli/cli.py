@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import argparse
 import sys
 from .auth import WeWorkAuth
+from zoneinfo import ZoneInfo
 
 
 class SharedWorkspaceResponse:
@@ -38,6 +39,82 @@ class GeoLocation:
         self.image = data['image']
         self.is_migrated = data['isMigrated']
 
+class UpcomingBookingsResponse:
+    def __init__(self, data):
+        self.bookings = [Booking(b) for b in data]
+
+class Booking:
+    def __init__(self, data):
+        self.uuid = data['uuid']
+        self.starts_at = datetime.fromisoformat(data['startsAt'].replace('Z', '+00:00'))
+        self.ends_at = datetime.fromisoformat(data['endsAt'].replace('Z', '+00:00'))
+        self.credit_order = CreditOrder(data['creditOrder'])
+        self.reservable = SharedWorkspace(data['reservable'])
+        self.is_attendee = data['isAttendee']
+        self.modification_deadline = datetime.fromisoformat(data['modificationDeadline'].replace('Z', '+00:00'))
+        self.order = Order(data['order'])
+        self.is_multiday_booking = data['isMultidayBooking']
+        self.kube_same_day_cancel_policy = data['kubeSameDayCancelPolicy']
+        self.is_from_kube = data['isFromKube']
+        self.kube_booking_external_reference = data['kubeBookingExternalReference']
+        self.cwm_booking_reference_id = data['cwmBookingReferenceId']
+        self.is_from_cwm = data['isFromCwm']
+        self.is_booking_confirmation_pending = data['isBookingConfirmationPending']
+        self.is_booking_approval_on = data['IsBookingApprovalOn']
+        self.same_day_cancel_policy = data['sameDayCancelPolicy']
+        self.kube_created_on_date = datetime.fromisoformat(data['kubeCreatedOnDate']) if data['kubeCreatedOnDate'] != "0001-01-01T00:00:00" else None
+        self.kube_modified_on_date = datetime.fromisoformat(data['kubeModifiedOnDate']) if data['kubeModifiedOnDate'] != "0001-01-01T00:00:00" else None
+        self.kube_start_date = datetime.fromisoformat(data['kubeStartDate']) if data['kubeStartDate'] != "0001-01-01T00:00:00" else None
+
+class CreditOrder:
+    def __init__(self, data):
+        self.price = float(data['price'])
+
+class SharedWorkspace:
+    def __init__(self, data):
+        self.uuid = data['uuid']
+        self.capacity = data['capacity']
+        self.typename = data['__typename']
+        self.location = SharedWorkspaceLocation(data['location'])
+        self.image_url = data['imageUrl']
+        self.cwm_space_id = data['cwmSpaceId']
+
+class SharedWorkspaceLocation: 
+    def __init__(self, data):
+            self.kube_property_id = data['kubePropertyID']
+            self.cwm_property_id = data['cwmPropertyID']
+            self.uuid = data['uuid']
+            self.name = data['name']
+            self.latitude = data['latitude']
+            self.longitude = data['longitude']
+            self.address = Address(data['address'])
+            self.time_zone = data['timeZone'] #         "timeZone": "Asia/Tokyo",
+            self.distance = data['distance']
+            self.has_third_party_display = data['hasThirdPartyDisplay']
+            self.is_migrated = data['isMigrated']
+
+
+class Order:
+    def __init__(self, data):
+        self.payment_profile_uuid = data['paymentProfileUuid']
+        self.sub_total = Amount(data['subTotal'])
+        self.adjustments = data['adjustments']
+        self.taxes = data['taxes']
+        self.grand_total = Amount(data['grandTotal'])
+
+class Amount:
+    def __init__(self, data):
+        self.amount = float(data['amount'])
+        self.currency = data['currency']
+
+class Address:
+    def __init__(self, data):
+        self.line1 = data['line1']
+        self.line2 = data['line2']
+        self.city = data['city']
+        self.state = data['state']
+        self.country = data['country']
+        self.zip = data['zip']
     
 
 class Workspace:
@@ -314,10 +391,34 @@ class WeWork:
             return SharedWorkspaceResponse(response)
         return None
 
+    def get_upcoming_bookings(self):
+            url = 'https://members.wework.com/workplaceone/api/ext-booking/get-wework-upcoming-booking-data'
+            headers = {
+                'Accept': 'application/json, text/plain, */*',
+                'Sec-Fetch-Site': 'same-origin',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Fetch-Mode': 'cors',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15',
+                'Referer': 'https://members.wework.com/workplaceone/content2/your-bookings',
+                'Sec-Fetch-Dest': 'empty',
+                'Request-Source': 'MemberWeb/WorkplaceOne/Prod',
+                'Priority': 'u=3, i',
+                'IsCAKube': 'true',
+                'WeWorkMemberType': '2',
+                'fe-pg': '/workplaceone/content2/your-bookings',
+                'IsKube': 'true'
+            }
+            
+            response = self.do_request('get', url)
+            if response:
+                return UpcomingBookingsResponse(response)
+            return None
+
 def main():
     parser = argparse.ArgumentParser(description="WeWork Booking CLI")
-    parser.add_argument('action', choices=['book', 'spaces', 'locations'], help="Action to perform: 'book', 'spaces', or 'locations'")
-    parser.add_argument('date', help="Date in YYYY-MM-DD format")
+    parser.add_argument('action', choices=['book', 'spaces', 'locations', 'bookings'], help="Action to perform: 'book', 'spaces', 'locations', or 'bookings'")
+    parser.add_argument('date', help="Date in YYYY-MM-DD format", nargs='?')
     parser.add_argument('--location-uuid', help="Location ID for booking")
     parser.add_argument('--city', help="City name (required when action is 'geo')")
     parser.add_argument("--username", help="Username", required=True)
@@ -411,6 +512,24 @@ def main():
         print("-" * 120)
         for space in response.workspaces:
             print(f"{space.location.name[:28].ljust(30)}{space.uuid.ljust(40)}{space.location.uuid.ljust(40)}{space.seat.available}")
+
+    elif args.action == 'bookings':
+        response = ww.get_upcoming_bookings()
+        if not response or len(response.bookings) == 0:
+            print("No upcoming bookings found.")
+            sys.exit(0)
+
+        print("Date".ljust(20) + "Time".ljust(25) + "Location".ljust(30) + "Address".ljust(40) + "Credits Used")
+        print("-" * 145)
+        for booking in response.bookings:
+            local_starts_at = booking.starts_at.astimezone(ZoneInfo(booking.reservable.location.time_zone))
+            local_ends_at = booking.ends_at.astimezone(ZoneInfo(booking.reservable.location.time_zone))
+            time_range = f"{local_starts_at.strftime('%H:%M')} ~ {local_ends_at.strftime('%H:%M')}"
+            date_with_day = f"{local_starts_at.strftime('%Y-%m-%d %a')}{' *' if local_starts_at.date() == datetime.now(ZoneInfo(booking.reservable.location.time_zone)).date() else ''}"
+            print(
+                f"{date_with_day.ljust(20)}{time_range.ljust(25)}{booking.reservable.location.name[:28].ljust(30)}{booking.reservable.location.address.line1[:38].ljust(40)}{booking.credit_order.price}"
+            )
+
 
 if __name__ == "__main__":
     main()
