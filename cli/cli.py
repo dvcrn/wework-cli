@@ -478,6 +478,8 @@ def main():
             space = spaces.workspaces[0]
 
             print(f"Attempting to book: {space.location.name} for {date}")
+            book_res = ww.post_booking(date, space.uuid, space.location.uuid, space.location)
+            print(book_res)
     elif args.action == 'locations':
         if not args.city:
             print("Error: --city is required for location lookup.")
