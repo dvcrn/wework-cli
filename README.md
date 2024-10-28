@@ -30,14 +30,23 @@ Options:
 - `--location-uuid`: Location UUID for booking (optional for 'book' action)
 - `--city`: City name (required for 'locations' action, optional for 'book' action)
 - `--name`: Space name (optional for 'book' action, requires --city)
-- `--username`: Username (required)
-- `--password`: Password (required)
+- `--username`: Username (required if WEWORK_USERNAME env var is not set)
+- `--password`: Password (required if WEWORK_PASSWORD env var is not set)
+
+Authentication can be provided either through command line arguments or environment variables:
+
+
+export WEWORK_USERNAME=your_username
+export WEWORK_PASSWORD=your_password
+
 
 Examples:
 
 1. List locations in a city:
    
    wework locations --city "New York" --username your_username --password your_password
+   # Or using environment variables:
+   wework locations --city "New York"
    
 
 2. List available desks for a date:
