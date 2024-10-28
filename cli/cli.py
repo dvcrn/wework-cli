@@ -383,6 +383,7 @@ class WeWork:
         if response:
             return LocationsByGeoResponse(response)
         return None
+
     def get_available_spaces(self, date_str, location_uuid):
         url = f'https://members.wework.com/workplaceone/api/spaces/get-spaces?locationUUIDs={','.join(location_uuid)}&closestCity=&userLatitude=35.6953443&userLongitude=139.7564755&boundnwLat=&boundnwLng=&boundseLat=&boundseLng=&type=0&offset=0&limit=50&roomTypeFilter=&date={date_str}&duration=30&locationOffset=%2B09%3A00&isWeb=true&capacity=0&endDate='
 
@@ -420,7 +421,8 @@ def main():
     parser.add_argument('action', choices=['book', 'desks', 'locations', 'bookings'], help="Action to perform: 'book', 'desks', 'locations', or 'bookings'")
     parser.add_argument('date', help="Date in YYYY-MM-DD format", nargs='?')
     parser.add_argument('--location-uuid', help="Location ID for booking")
-    parser.add_argument('--city', help="City name (required when action is 'geo')")
+    parser.add_argument('--city', help="City name (required when action is 'locations')")
+    parser.add_argument('--name', help="Space name")
     parser.add_argument("--username", help="Username", required=True)
     parser.add_argument("--password", help="Password", required=True)
 
@@ -432,9 +434,22 @@ def main():
     ww = WeWork(result["token"], result["idToken"])
 
     if args.action == 'book':
-        if not args.location_uuid:
-            print("Error: --location-uuid is required for booking.")
+        if (not args.location_uuid and (not args.name and not args.city)):
+            print("Error: --location-uuid OR (--city + --name) is required for booking.")
             sys.exit(1)
+
+        available_locations = []
+        location_uuid = args.location_uuid
+        if args.city and not args.location_uuid:
+            res = ww.get_locations_by_geo(args.city)
+            for location in res.locations:
+                available_locations.append(location.name)
+                if args.name == location.name:
+                    location_uuid = location.uuid
+
+        if not location_uuid:
+            print(f"Error: Could not find any space with the name '{args.name}'. Available locations for city {args.city} are {", ".join(available_locations)}" )
+            sys.exit(0)
 
         # Parse the date argument
         dates = []
@@ -456,7 +471,7 @@ def main():
         # do lookup for location_id
         for date in dates:
             print(f"Checking availability for {date}")
-            spaces = ww.get_available_spaces(date, [args.location_uuid])
+            spaces = ww.get_available_spaces(date, [location_uuid])
             
             if not spaces or not spaces.workspaces:
                 print("Error: No spaces found, or not available for the given date.")
@@ -479,7 +494,7 @@ def main():
 
             print(f"Attempting to book: {space.location.name} for {date}")
             book_res = ww.post_booking(date, space.uuid, space.location.uuid, space.location)
-            print(book_res)
+            print(f"Booking status: {'Success' if book_res.reservation_uuid else 'Failed'} - {book_res.booking_processing_status}")
     elif args.action == 'locations':
         if not args.city:
             print("Error: --city is required for location lookup.")

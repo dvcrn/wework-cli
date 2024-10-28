@@ -27,8 +27,9 @@ Available actions:
 - `bookings`: List your upcoming bookings
 
 Options:
-- `--location-uuid`: Location UUID for booking (required for 'book' action)
-- `--city`: City name (required for 'locations' action)
+- `--location-uuid`: Location UUID for booking (optional for 'book' action)
+- `--city`: City name (required for 'locations' action, optional for 'book' action)
+- `--name`: Space name (optional for 'book' action, requires --city)
 - `--username`: Username (required)
 - `--password`: Password (required)
 
@@ -47,6 +48,9 @@ Examples:
 3. Book a space:
    
    wework book 2023-06-01 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   
+   # Or using city and name:
+   wework book 2023-06-01 --city "New York" --name "WeWork Times Square" --username your_username --password your_password
    
 
 Note: You can book multiple dates by using a date range or comma-separated list:
