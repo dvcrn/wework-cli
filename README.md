@@ -9,7 +9,7 @@ wework is a CLI tool for booking WeWork spaces.
 You can install wework directly from GitHub using pip:
 
 
-pip install git+https://github.com/dvcrn/wework-cli.git
+pipx install git+https://github.com/dvcrn/wework-cli.git
 
 
 ## Usage
