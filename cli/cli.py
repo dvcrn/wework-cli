@@ -460,8 +460,13 @@ def main():
     parser = argparse.ArgumentParser(description="WeWork Booking CLI")
     parser.add_argument(
         "action",
-        choices=["book", "desks", "locations", "bookings"],
-        help="Action to perform: 'book', 'desks', 'locations', or 'bookings'",
+        choices=["book", "desks", "locations", "bookings", "calendar"],
+        help="Action to perform: 'book', 'desks', 'locations', 'bookings', or 'calendar'",
+    )
+    parser.add_argument(
+        "--calendar-path",
+        help="Output path for calendar file",
+        default="wework_bookings.ics",
     )
     parser.add_argument(
         "date",
@@ -578,6 +583,13 @@ def main():
             print(
                 f"{location.name[:28].ljust(30)}{location.uuid.ljust(40)}{str(location.latitude)[:13].ljust(15)}{location.longitude}"
             )
+
+    elif args.action == "calendar":
+        from .calendar_handler import WeWorkCalendar
+
+        calendar = WeWorkCalendar(ww)
+        output_file = calendar.generate_calendar(args.calendar_path)
+        print(f"Calendar file generated at: {output_file}")
 
     elif args.action == "desks":
         if not args.location_uuid and not args.city:

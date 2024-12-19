@@ -24,7 +24,7 @@ Available actions:
 - `book`: Book a WeWork space
 - `desks`: List available desks
 - `locations`: List WeWork locations in a city
-- `bookings`: List your upcoming bookings
+- `calendar`: Generate an iCalendar (.ics) file containing your WeWork bookings
 
 Options:
 - `--location-uuid`: Location UUID for booking (optional for 'book' action)
@@ -77,6 +77,11 @@ wework desks 2023-06-01 --city "New York" --username your_username --password yo
 4. List your upcoming bookings:
    
    wework bookings --username your_username --password your_password
+   
+
+5. Generate a calendar file for importing into calendar apps:
+   
+   wework calendar --username your_username --password your_password
    
 
 For more information on available options, use:

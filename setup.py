@@ -18,15 +18,16 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires=">=3.6",
     install_requires=[
-        'requests>=2.26.0',
-        'argparse>=1.4.0',
-        'beautifulsoup4>=4.12.3'
+        "requests>=2.26.0",
+        "argparse>=1.4.0",
+        "beautifulsoup4>=4.12.3",
+        "icalendar>=5.0.0",
     ],
     entry_points={
-        'console_scripts': [
-            'wework=cli:main',
+        "console_scripts": [
+            "wework=cli:main",
         ],
     },
 )
