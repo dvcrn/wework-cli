@@ -463,7 +463,12 @@ def main():
         choices=["book", "desks", "locations", "bookings"],
         help="Action to perform: 'book', 'desks', 'locations', or 'bookings'",
     )
-    parser.add_argument("date", help="Date in YYYY-MM-DD format", nargs="?", default=datetime.now().strftime("%Y-%m-%d"))
+    parser.add_argument(
+        "date",
+        help="Date in YYYY-MM-DD format",
+        nargs="?",
+        default=datetime.now().strftime("%Y-%m-%d"),
+    )
     parser.add_argument("--location-uuid", help="Location ID for booking")
     parser.add_argument(
         "--city", help="City name (required when action is 'locations')"
@@ -534,7 +539,7 @@ def main():
 
             if not spaces or not spaces.workspaces:
                 print("Error: No spaces found, or not available for the given date.")
-                sys.exit(1)
+                continue
 
             if len(spaces.workspaces) > 1:
                 print("Found multiple spaces: ")
