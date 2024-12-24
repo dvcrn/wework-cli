@@ -20,8 +20,11 @@ class WeWorkCalendar:
 
             # Convert to date-only for full day events
             start_date = date(
-                booking.starts_at.year, booking.starts_at.month, booking.starts_at.day
+                booking.starts_at.year,
+                booking.starts_at.month,
+                booking.starts_at.day
             )
+
             # For single-day events, use the same date for start and end
             event.add("dtstart", vDate(start_date))
             event.add("dtend", vDate(start_date))
@@ -47,8 +50,7 @@ class WeWorkCalendar:
                 f"WeWork Booking Details:\n"
                 f"Location: {booking.reservable.location.name}\n"
                 f"Address: {booking.reservable.location.address.line1}\n"
-                f"Time: {booking.starts_at.strftime('%I:%M %p')} - {booking.ends_at.strftime('%I:%M %p')}\n"
-                f"Booking ID: {booking.uuid}"
+                f"Time: {booking.starts_at.strftime('%I:%M %p')} - {booking.ends_at.strftime('%I:%M %p')}\nBooking ID: {booking.uuid}"
             )
             event.add("description", description)
             event.add("uid", booking.uuid)

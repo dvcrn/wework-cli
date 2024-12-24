@@ -51,15 +51,17 @@ class UpcomingBookingsResponse:
 
 class Booking:
     def __init__(self, data):
+        time_zone = data["reservable"]["location"].get("timeZone", None)
+
         self.uuid = data["uuid"]
-        self.starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00"))
-        self.ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00"))
+        self.starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00")).astimezone(ZoneInfo(time_zone))
+        self.ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00")).astimezone(ZoneInfo(time_zone))
         self.credit_order = CreditOrder(data["creditOrder"])
         self.reservable = SharedWorkspace(data["reservable"])
         self.is_attendee = data["isAttendee"]
         self.modification_deadline = datetime.fromisoformat(
             data["modificationDeadline"].replace("Z", "+00:00")
-        )
+        ).astimezone(ZoneInfo(time_zone))
         self.order = Order(data["order"])
         self.is_multiday_booking = data["isMultidayBooking"]
         self.kube_same_day_cancel_policy = data["kubeSameDayCancelPolicy"]
@@ -71,21 +73,20 @@ class Booking:
         self.is_booking_approval_on = data["IsBookingApprovalOn"]
         self.same_day_cancel_policy = data["sameDayCancelPolicy"]
         self.kube_created_on_date = (
-            datetime.fromisoformat(data["kubeCreatedOnDate"])
+            datetime.fromisoformat(data["kubeCreatedOnDate"]).astimezone(ZoneInfo(time_zone))
             if data["kubeCreatedOnDate"] != "0001-01-01T00:00:00"
             else None
         )
         self.kube_modified_on_date = (
-            datetime.fromisoformat(data["kubeModifiedOnDate"])
+            datetime.fromisoformat(data["kubeModifiedOnDate"]).astimezone(ZoneInfo(time_zone))
             if data["kubeModifiedOnDate"] != "0001-01-01T00:00:00"
             else None
         )
         self.kube_start_date = (
-            datetime.fromisoformat(data["kubeStartDate"])
+            datetime.fromisoformat(data["kubeStartDate"]).astimezone(ZoneInfo(time_zone))
             if data["kubeStartDate"] != "0001-01-01T00:00:00"
             else None
         )
-
 
 class CreditOrder:
     def __init__(self, data):
