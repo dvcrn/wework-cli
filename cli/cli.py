@@ -56,6 +56,7 @@ class Booking:
         self.uuid = data["uuid"]
         self.starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00")).astimezone(ZoneInfo(time_zone))
         self.ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00")).astimezone(ZoneInfo(time_zone))
+        self.timezone = time_zone
         self.credit_order = CreditOrder(data["creditOrder"])
         self.reservable = SharedWorkspace(data["reservable"])
         self.is_attendee = data["isAttendee"]
@@ -430,6 +431,30 @@ class WeWork:
         response = self.do_request("get", url)
         if response:
             return SharedWorkspaceResponse(response)
+        return None
+
+    def get_past_bookings(self):
+        url = "https://members.wework.com/workplaceone/api/ext-booking/get-wework-past-booking-data"
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Sec-Fetch-Site": "same-origin",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Sec-Fetch-Mode": "cors",
+            "Accept-Encoding": "gzip, deflate, br",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Safari/605.1.15",
+            "Referer": "https://members.wework.com/workplaceone/content2/your-bookings",
+            "Sec-Fetch-Dest": "empty",
+            "Request-Source": "MemberWeb/WorkplaceOne/Prod",
+            "Priority": "u=3, i",
+            "IsCAKube": "true",
+            "WeWorkMemberType": "2",
+            "fe-pg": "/workplaceone/content2/your-bookings",
+            "IsKube": "true",
+        }
+
+        response = self.do_request("get", url)
+        if response:
+            return UpcomingBookingsResponse(response)
         return None
 
     def get_upcoming_bookings(self):

@@ -2,9 +2,11 @@ from icalendar import Calendar, Event, vDate
 from pathlib import Path
 from datetime import date
 
+from cli.cli import WeWork
+
 
 class WeWorkCalendar:
-    def __init__(self, wework):
+    def __init__(self, wework: WeWork):
         self.wework = wework
 
     def generate_calendar(self, output_path):
@@ -12,9 +14,14 @@ class WeWorkCalendar:
         cal.add("prodid", "-//WeWork Calendar//workplaceone//")
         cal.add("version", "2.0")
 
-        bookings = self.wework.get_upcoming_bookings()
+        past_bookings = self.wework.get_past_bookings()
+        # get the most recent 10 bookings
+        past_bookings = past_bookings.bookings[:10]
 
-        for booking in bookings.bookings:
+        upcoming_bookings = self.wework.get_upcoming_bookings()
+        merged_bookings = past_bookings + upcoming_bookings.bookings
+
+        for booking in merged_bookings:
             event = Event()
             event.add("summary", f"WeWork: {booking.reservable.location.name}")
 
@@ -25,9 +32,13 @@ class WeWorkCalendar:
                 booking.starts_at.day
             )
 
+            dtstart_with_tzid = f"DTSTART;TZID={booking.timezone}"
+            dtend_with_tzid = f"DTEND;TZID={booking.timezone}"
+
             # For single-day events, use the same date for start and end
-            event.add("dtstart", vDate(start_date))
-            event.add("dtend", vDate(start_date))
+            event.add(dtstart_with_tzid, vDate(start_date))
+            event.add(dtend_with_tzid, vDate(start_date))
+            event.add("TZID", booking.timezone)
 
             # Disable reminders/alerts
             event.add("X-MICROSOFT-CDO-ALLDAYEVENT", "TRUE")
