@@ -54,8 +54,12 @@ class Booking:
         time_zone = data["reservable"]["location"].get("timeZone", None)
 
         self.uuid = data["uuid"]
-        self.starts_at = datetime.fromisoformat(data["startsAt"].replace("Z", "+00:00")).astimezone(ZoneInfo(time_zone))
-        self.ends_at = datetime.fromisoformat(data["endsAt"].replace("Z", "+00:00")).astimezone(ZoneInfo(time_zone))
+        self.starts_at = datetime.fromisoformat(
+            data["startsAt"].replace("Z", "+00:00")
+        ).astimezone(ZoneInfo(time_zone))
+        self.ends_at = datetime.fromisoformat(
+            data["endsAt"].replace("Z", "+00:00")
+        ).astimezone(ZoneInfo(time_zone))
         self.timezone = time_zone
         self.credit_order = CreditOrder(data["creditOrder"])
         self.reservable = SharedWorkspace(data["reservable"])
@@ -74,20 +78,27 @@ class Booking:
         self.is_booking_approval_on = data["IsBookingApprovalOn"]
         self.same_day_cancel_policy = data["sameDayCancelPolicy"]
         self.kube_created_on_date = (
-            datetime.fromisoformat(data["kubeCreatedOnDate"]).astimezone(ZoneInfo(time_zone))
+            datetime.fromisoformat(data["kubeCreatedOnDate"]).astimezone(
+                ZoneInfo(time_zone)
+            )
             if data["kubeCreatedOnDate"] != "0001-01-01T00:00:00"
             else None
         )
         self.kube_modified_on_date = (
-            datetime.fromisoformat(data["kubeModifiedOnDate"]).astimezone(ZoneInfo(time_zone))
+            datetime.fromisoformat(data["kubeModifiedOnDate"]).astimezone(
+                ZoneInfo(time_zone)
+            )
             if data["kubeModifiedOnDate"] != "0001-01-01T00:00:00"
             else None
         )
         self.kube_start_date = (
-            datetime.fromisoformat(data["kubeStartDate"]).astimezone(ZoneInfo(time_zone))
+            datetime.fromisoformat(data["kubeStartDate"]).astimezone(
+                ZoneInfo(time_zone)
+            )
             if data["kubeStartDate"] != "0001-01-01T00:00:00"
             else None
         )
+
 
 class CreditOrder:
     def __init__(self, data):
@@ -302,8 +313,20 @@ class WeWork:
 
             return js
         else:
-            print(f"Request failed with status code: {response.status_code}")
-            print(response.text)
+            print(f"Request to '{url}' failed with status code: {response.status_code}")
+            try:
+                error_response = response.json()
+                if "responseStatus" in error_response:
+                    status = error_response["responseStatus"]
+                    if status["type"] == "error":
+                        print(f"Error: {status['message']} ({status['title']})")
+                    else:
+                        print(error_response)
+                else:
+                    print(response.text)
+            except Exception:
+                print(response.text)
+
             return None
 
     def mxg_poll_quote(self, date_str, location_id, reservable_id, location):
