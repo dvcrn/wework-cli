@@ -172,6 +172,16 @@ func runBook(cmd *cobra.Command, args []string) error {
 		dates = append(dates, parsed)
 	}
 
+	// by default, assume everything is in current timezone
+	tz, err := time.LoadLocation("Local")
+	if err != nil {
+		return fmt.Errorf("failed to load local timezone: %v", err)
+	}
+
+	for i, d := range dates {
+		dates[i] = d.In(tz)
+	}
+
 	// Book for each date
 	for _, bookingDate := range dates {
 		fmt.Printf("Checking availability for %s\n", bookingDate)
