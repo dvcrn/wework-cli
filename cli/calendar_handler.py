@@ -27,9 +27,7 @@ class WeWorkCalendar:
 
             # Convert to date-only for full day events
             start_date = date(
-                booking.starts_at.year,
-                booking.starts_at.month,
-                booking.starts_at.day
+                booking.starts_at.year, booking.starts_at.month, booking.starts_at.day
             )
 
             dtstart_with_tzid = f"DTSTART;TZID={booking.timezone}"

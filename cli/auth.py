@@ -1,14 +1,10 @@
-import requests
-import json
-import re
-from urllib.parse import urlencode, parse_qs, urljoin
-from bs4 import BeautifulSoup
-
-import pprint
-
-import secrets
-import hashlib
 import base64
+import hashlib
+import secrets
+from urllib.parse import urlencode, parse_qs, urljoin
+
+import requests
+from bs4 import BeautifulSoup
 
 
 class WeWorkAuth:
@@ -32,6 +28,9 @@ class WeWorkAuth:
         digest = hashlib.sha256(code_verifier_bytes).digest()
         return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
+    def _generate_nonce(self):
+        return base64.b64encode(secrets.token_bytes(32)).decode("utf-8")
+
     def get_auth0_config(self):
         url = "https://members.wework.com/workplaceone/api/auth0/config"
         params = {
@@ -43,6 +42,7 @@ class WeWorkAuth:
 
     def authenticate(self):
         # Step 1: Get the initial state
+        nonce = self._generate_nonce()
         auth_params = {
             "redirect_uri": self.config["redirect_uri"],
             "client_id": self.config["client_id"],
@@ -50,21 +50,16 @@ class WeWorkAuth:
             "scope": "openid profile email offline_access",
             "response_type": "code",
             "response_mode": "query",
-            "nonce": "ZURxb08tUXJtUVlDVlFPfmFwcm1za1h6Q2ZySmtZSUNGWXJJS3ItaWktbg==",
+            "nonce": nonce,
             "code_challenge": self.code_challenge,
             "code_challenge_method": "S256",
             "auth0Client": "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=",
         }
 
-        # print(auth_params)
-
         auth_url = f"https://{self.config['domain']}/authorize?{urlencode(auth_params)}"
         response = self.session.get(auth_url, allow_redirects=False)
         login_url = response.headers["Location"]
         state = parse_qs(login_url.split("?")[1])["state"][0]
-
-        # print("Login URL:")
-        # print(login_url)
 
         # Handle IDP redirect to /login
         idp_response = self.session.get(
@@ -74,9 +69,14 @@ class WeWorkAuth:
         if idp_response.status_code in (301, 302, 303, 307, 308):
             login_url = idp_response.headers["Location"]
 
-        # print("Login URL:")
-        # print(login_url)
-        # print(state)
+        csrf_token = None
+        for cookie in self.session.cookies:
+            if cookie.name == "_csrf":
+                csrf_token = cookie.value
+                break
+
+        if not csrf_token:
+            raise Exception("CSRF token not found in cookies")
 
         # Step 2: Perform actual login
         login_url = f"https://{self.config['domain']}/usernamepassword/login"
@@ -88,11 +88,11 @@ class WeWorkAuth:
             "scope": "openid profile email offline_access",
             "audience": self.config["audience"],
             "state": state,
-            "nonce": "YlNIdnY3dWRJUW9zYlpKclNzamc4VDB4dkpmYUtrY3M4R2hLSUtnVW5JeQ==",
+            "nonce": nonce,
             "connection": "id-wework",
             "username": self.username,
             "password": self.password,
-            "_csrf": "YDBviN84-fwB6GPKLCHbSHM_5hbfP6PIRlEw",
+            "_csrf": csrf_token,
             "_intstate": "deprecated",
             "protocol": "oauth2",
             "popup_options": {},
@@ -109,19 +109,11 @@ class WeWorkAuth:
 
         headers = {
             "Auth0-Client": "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xIiwiZW52Ijp7ImFuZ3VsYXIvY29yZSI6IjEzLjEuMSIsImxvY2suanMtdWxwIjoiMTIuMC4yIiwiYXV0aDAuanMtdWxwIjoiOS4yMC4yIn19",
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept-Charset": "utf-8",
             "Origin": "https://idp.wework.com",
             "Referer": login_url,
         }
-
-        # print("Login URL:")
-        # print(login_url)
-
-        # print("Headers:")
-        # pprint.pprint(headers)
-
-        # print("Login data:")
-        # pprint.pprint(login_data)
 
         response = self.session.post(login_url, json=login_data, headers=headers)
 

@@ -1,10 +1,12 @@
-import requests
-from datetime import datetime, timedelta
 import argparse
-import sys
-from .auth import WeWorkAuth
-from zoneinfo import ZoneInfo
 import os
+import sys
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+import requests
+
+from .auth import WeWorkAuth
 
 
 class SharedWorkspaceResponse:
@@ -449,7 +451,7 @@ class WeWork:
         return None
 
     def get_available_spaces(self, date_str, location_uuid):
-        url = f'https://members.wework.com/workplaceone/api/spaces/get-spaces?locationUUIDs={','.join(location_uuid)}&closestCity=&userLatitude=35.6953443&userLongitude=139.7564755&boundnwLat=&boundnwLng=&boundseLat=&boundseLng=&type=0&offset=0&limit=50&roomTypeFilter=&date={date_str}&duration=30&locationOffset=%2B09%3A00&isWeb=true&capacity=0&endDate='
+        url = f"https://members.wework.com/workplaceone/api/spaces/get-spaces?locationUUIDs={','.join(location_uuid)}&closestCity=&userLatitude=35.6953443&userLongitude=139.7564755&boundnwLat=&boundnwLng=&boundseLat=&boundseLng=&type=0&offset=0&limit=50&roomTypeFilter=&date={date_str}&duration=30&locationOffset=%2B09%3A00&isWeb=true&capacity=0&endDate="
 
         response = self.do_request("get", url)
         if response:
