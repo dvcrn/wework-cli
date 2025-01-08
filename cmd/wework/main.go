@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -21,6 +19,7 @@ var (
 	city         string
 	name         string
 	date         string
+	calendarPath string
 )
 
 func main() {
@@ -74,7 +73,22 @@ func main() {
 		RunE:  runBookings,
 	}
 
-	rootCmd.AddCommand(locationsCmd, desksCmd, bookingsCmd, bookCmd)
+	// Calendar command
+	calendarCmd := &cobra.Command{
+		Use:   "calendar",
+		Short: "Generate calendar file",
+		Long:  `Generate an ICS calendar file from your WeWork bookings.`,
+		RunE:  runCalendar,
+	}
+	calendarCmd.Flags().StringVar(&calendarPath, "calendar-path", "wework_bookings.ics", "Output path for calendar file")
+
+	rootCmd.AddCommand(
+		locationsCmd,
+		desksCmd,
+		bookingsCmd,
+		bookCmd,
+		calendarCmd,
+	)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -191,17 +205,6 @@ func runBook(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		// TODO: for debug. remove me.
-		func(v interface{}) {
-			j, err := json.MarshalIndent(v, "", "  ")
-			if err != nil {
-				fmt.Printf("%v\n", err)
-				return
-			}
-			buf := bytes.NewBuffer(j)
-			fmt.Printf("%v\n", buf.String())
-		}(spaces)
-
 		if len(spaces.Response.Workspaces) == 0 {
 			fmt.Printf("No spaces found for %s\n", bookingDate)
 			continue
@@ -282,17 +285,6 @@ func runDesks(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to get locations: %v", err)
 		}
-
-		// TODO: for debug. remove me.
-		func(v interface{}) {
-			j, err := json.MarshalIndent(v, "", "  ")
-			if err != nil {
-				fmt.Printf("%v\n", err)
-				return
-			}
-			buf := bytes.NewBuffer(j)
-			fmt.Printf("%v\n", buf.String())
-		}(res)
 
 		for _, location := range res.LocationsByGeo {
 			locationUUIDs = append(locationUUIDs, location.UUID)
@@ -382,6 +374,22 @@ func runBookings(cmd *cobra.Command, args []string) error {
 			address,
 			booking.CreditOrder.Price)
 	}
+
+	return nil
+}
+
+func runCalendar(cmd *cobra.Command, args []string) error {
+	ww, err := authenticate()
+	if err != nil {
+		return err
+	}
+
+	cal := wework.NewWeWorkCalendar(ww)
+	if err := cal.GenerateCalendar(calendarPath); err != nil {
+		return fmt.Errorf("failed to generate calendar: %v", err)
+	}
+
+	fmt.Printf("Calendar generated at %s\n", calendarPath)
 
 	return nil
 }

@@ -4,6 +4,7 @@ go 1.23.4
 
 require (
 	github.com/PuerkitoBio/goquery v1.10.1
+	github.com/arran4/golang-ical v0.3.1
 	github.com/spf13/cobra v1.8.1
 )
 
