@@ -1,0 +1,68 @@
+name: Build Release Assets
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build-bottles:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        os: [monterey, big_sur, catalina]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Build bottle
+        run: |
+          brew tap dvcrn/homebrew-formulas
+          brew install --build-bottle --verbose wework
+          brew bottle wework
+
+      - name: Upload bottle
+        uses: actions/upload-artifact@v3
+        with:
+          name: bottles
+          path: ./*.bottle.tar.gz
+
+  build-binaries:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64, arm]
+        exclude:
+          - goos: windows
+            goarch: arm
+          - goos: darwin
+            goarch: arm
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          OUTPUT="wework-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          go build -ldflags="-s -w" -o "${OUTPUT}" cmd/wework/main.go
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: wework-*
