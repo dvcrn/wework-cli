@@ -133,11 +133,11 @@ func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*Share
 	buf.ReadFrom(resp.Body)
 	reader := bytes.NewReader(buf.Bytes())
 
-	b := bytes.Buffer{}
-	b.ReadFrom(reader)
-	fmt.Println(b.String())
-
-	reader.Seek(0, 0)
+	//b := bytes.Buffer{}
+	//b.ReadFrom(reader)
+	//fmt.Println(b.String())
+	//
+	//reader.Seek(0, 0)
 	var result SharedWorkspaceResponse
 	if err := json.NewDecoder(reader).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
