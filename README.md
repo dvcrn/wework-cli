@@ -10,7 +10,7 @@ You can install wework directly from GitHub using pip:
 
 
 ```
-pipx install git+https://github.com/dvcrn/wework-cli.git
+go install github.com/dvcrn/wework-cli/cmd/wework@latest
 ```
 
 
