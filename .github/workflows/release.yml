@@ -10,7 +10,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        os: [sequoia, sonoma]
+        os: [macos-14, macos-15]
 
     steps:
       - name: Checkout

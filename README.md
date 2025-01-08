@@ -6,8 +6,16 @@ wework is a CLI tool for booking WeWork spaces.
 
 ## Installation
 
-You can install wework directly from GitHub using pip:
+with brew:
 
+
+```
+brew tap dvcrn/formulas
+brew install wework
+```
+
+
+... or directly with Golang:
 
 ```
 go install github.com/dvcrn/wework-cli/cmd/wework@latest
