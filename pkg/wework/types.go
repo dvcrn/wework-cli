@@ -227,3 +227,183 @@ type BookingQuote struct {
 }
 
 type LineItem struct{}
+
+type AppBootstrapRequest struct {
+	IsCAKube         bool   `json:"isCAKube"`
+	IsKube           bool   `json:"isKube"`
+	RequestSource    string `json:"requestSource"`
+	WeWorkMemberType string `json:"weWorkMemberType"`
+	WeWorkUUID       string `json:"weWorkUUID"`
+}
+
+type AppBootstrapResponse struct {
+	MenuSecurityData struct {
+		IsPasswordChangeEnforcing bool `json:"isPasswordChangeEnforcing"`
+		MenuData                  []struct {
+			Id               int    `json:"Id"`
+			MenuItemName     string `json:"MenuItemName"`
+			MenuCaption      string `json:"MenuCaption"`
+			MenuLinkURL      string `json:"MenuLinkURL"`
+			Parent           int    `json:"Parent"`
+			Order            int    `json:"Order"`
+			HasSubMenu       bool   `json:"HasSubMenu"`
+			OpenInNewWindow  bool   `json:"OpenInNewWindow"`
+			MenuSet          string `json:"MenuSet"`
+			NavCssClass      string `json:"NavCssClass"`
+			ActiveClass      string `json:"ActiveClass"`
+			MenuIconImage    string `json:"MenuIconImage"`
+			MenuContentClass int    `json:"MenuContentClass"`
+			RouteParams      string `json:"RouteParams"`
+			MenuSection      int    `json:"MenuSection"`
+			IsToBeRemoved    bool   `json:"IsToBeRemoved"`
+		} `json:"menuData"`
+		Cacheresponse bool   `json:"Cacheresponse"`
+		AdminRole     string `json:"adminRole"`
+	} `json:"menuSecurityData"`
+	PageSentryData struct {
+		AllowedItems []struct {
+			Identifier  int    `json:"identifier"`
+			URLFragment string `json:"urlFragment"`
+		} `json:"allowedItems"`
+	} `json:"pageSentryData"`
+	WeworkUserProfileData struct {
+		ProfileData struct {
+			WeWorkCompanyLicenseType int `json:"WeWorkCompanyLicenseType"`
+			WeWorkUserData           struct {
+				WeWorkMembershipUUID            string  `json:"WeWorkMembershipUUID"`
+				WeWorkProductUUID               string  `json:"WeWorkProductUUID"`
+				WeWorkPreferredMembershipUUID   string  `json:"WeWorkPreferredMembershipUUID"`
+				WeWorkUserUUID                  string  `json:"WeWorkUserUUID"`
+				WeWorkCompanyUUID               string  `json:"WeWorkCompanyUUID"`
+				WeWorkChargableAccountUUID      string  `json:"WeWorkChargableAccountUUID"`
+				WeWorkCompanyMigrationStatus    string  `json:"WeWorkCompanyMigrationStatus"`
+				WeWorkUserEmail                 string  `json:"WeWorkUserEmail"`
+				WeWorkMembershipType            string  `json:"WeWorkMembershipType"`
+				WeWorkMembershipName            string  `json:"WeWorkMembershipName"`
+				WeWorkUserName                  string  `json:"WeWorkUserName"`
+				WeWorkUserPhone                 string  `json:"WeWorkUserPhone"`
+				WeWorkUserAvatar                string  `json:"WeWorkUserAvatar"`
+				WeWorkUserLanguagePreference    string  `json:"WeWorkUserLanguagePreference"`
+				WeWorkUserHomeLocationUUID      string  `json:"WeWorkUserHomeLocationUUID"`
+				WeWorkUserHomeLocationName      string  `json:"WeWorkUserHomeLocationName"`
+				WeWorkUserHomeLocationCity      string  `json:"WeWorkUserHomeLocationCity"`
+				WeWorkUserHomeLocationLatitude  float64 `json:"WeWorkUserHomeLocationLatitude"`
+				WeWorkUserHomeLocationLongitude float64 `json:"WeWorkUserHomeLocationLongitude"`
+				WeWorkUserHomeLocationMigrated  bool    `json:"WeWorkUserHomeLocationMigrated"`
+				WeWorkUserPreferredCurrency     string  `json:"WeWorkUserPreferredCurrency"`
+				NoActiveMemberships             bool    `json:"NoActiveMemberships"`
+				IsKubeMigratedAccount           bool    `json:"IsKubeMigratedAccount"`
+				WeWorkUserThemePreference       int     `json:"WeWorkUserThemePreference"`
+			} `json:"WeWorkUserData"`
+			WeWorkCompanyList []struct {
+				UserUUID                       string `json:"UserUUID"`
+				CompanyUUID                    string `json:"CompanyUUID"`
+				CompanyName                    string `json:"CompanyName"`
+				CompanyLicenseType             int    `json:"CompanyLicenseType"`
+				PreferredMembershipUUID        string `json:"PreferredMembershipUUID"`
+				PreferredMembershipName        string `json:"PreferredMembershipName"`
+				PreferredMembershipType        string `json:"PreferredMembershipType"`
+				PreferredMembershipProductUUID string `json:"PreferredMembershipProductUUID"`
+				IsMigratedToKUBE               bool   `json:"IsMigratedToKUBE"`
+				CompanyMigrationStatus         string `json:"CompanyMigrationStatus"`
+				KUBECompanyUUID                string `json:"KUBECompanyUUID"`
+			} `json:"WeWorkCompanyList"`
+			WeWorkMembershipsList []struct {
+				UUID           string `json:"uuid"`
+				AccountUUID    string `json:"accountUuid"`
+				MembershipType string `json:"membershipType"`
+				UserUUID       string `json:"userUuid"`
+				ProductName    string `json:"productName"`
+				ProductUUID    string `json:"productUuid"`
+				ActivatedOn    string `json:"activatedOn"`
+				StartedOn      string `json:"startedOn"`
+				IsMigrated     bool   `json:"isMigrated"`
+				PriorityOrder  int    `json:"priorityOrder"`
+			} `json:"WeWorkMembershipsList"`
+			UserOnboardingStatus bool   `json:"UserOnboardingStatus"`
+			DebugModeEnabled     bool   `json:"DebugModeEnabled"`
+			IsUserWorkplaceAdmin bool   `json:"IsUserWorkplaceAdmin"`
+			AccountManagerLink   string `json:"AccountManagerLink"`
+		} `json:"profileData"`
+	} `json:"weworkUserProfileData"`
+	WeGateData struct {
+		WeGateFlags struct {
+			WeGateMemberWebFlags struct {
+				Meta struct{}      `json:"meta"`
+				Data []interface{} `json:"data"`
+			} `json:"WeGateMemberWebFlags"`
+		} `json:"weGateFlags"`
+	} `json:"weGateData"`
+	WorkplaceExperienceStatus bool `json:"WorkplaceExperienceStatus"`
+	VastExperienceStatus      bool `json:"VastExperienceStatus"`
+	GlobalSettings            struct {
+		AllowAffiliateBookingsInMemberWeb bool `json:"AllowAffiliateBookingsInMemberWeb"`
+	} `json:"GlobalSettings"`
+}
+
+type UserProfileResponse struct {
+	UUID               string       `json:"uuid"`
+	Phone              string       `json:"phone"`
+	Email              string       `json:"email"`
+	AvatarURL          string       `json:"avatarUrl"`
+	CoverURL           string       `json:"coverUrl"`
+	Name               string       `json:"name"`
+	IsWework           bool         `json:"isWework"`
+	IsAdmin            bool         `json:"isAdmin"`
+	IsAdminOrCM        bool         `json:"isAdminOrCM"`
+	Active             bool         `json:"active"`
+	AccountState       int          `json:"accountState"`
+	LanguagePreference string       `json:"languagePreference"`
+	HomeLocation       HomeLocation `json:"homeLocation"`
+	Companies          []Company    `json:"companies"`
+	RegistrationInfo   Registration `json:"registrationInfo"`
+}
+
+type HomeLocation struct {
+	UUID            string  `json:"uuid"`
+	Name            string  `json:"name"`
+	SupportEmail    string  `json:"supportEmail"`
+	PhoneNormalized string  `json:"phoneNormalized"`
+	Currency        string  `json:"currency"`
+	TimeZone        string  `json:"timeZone"`
+	Locale          string  `json:"locale"`
+	Latitude        float64 `json:"latitude"`
+	Longitude       float64 `json:"longitude"`
+	Address         Address `json:"address"`
+	Market          Market  `json:"market"`
+	IsMigrated      bool    `json:"isMigrated"`
+}
+
+type Market struct {
+	UUID string `json:"uuid"`
+}
+
+type Company struct {
+	UUID                        string               `json:"uuid"`
+	Name                        string               `json:"name"`
+	IsMigrated                  bool                 `json:"isMigrated"`
+	MigrationStatus             string               `json:"migrationStatus"`
+	PreferredMembershipNullable *PreferredMembership `json:"preferredMembershipNullable"`
+}
+
+type PreferredMembership struct {
+	UUID           string `json:"uuid"`
+	AccountUUID    string `json:"accountUuid"`
+	MembershipType string `json:"membershipType"`
+	UserUUID       string `json:"userUuid"`
+	ProductUUID    string `json:"productUuid"`
+	ProductName    string `json:"productName"`
+	IsMigrated     bool   `json:"isMigrated"`
+}
+
+type Registration struct {
+	Country Country `json:"country"`
+}
+
+type Country struct {
+	Name   string `json:"name"`
+	Alpha2 string `json:"alpha2"`
+	Alpha3 string `json:"alpha3"`
+	Code   int    `json:"code"`
+	Region int    `json:"region"`
+}

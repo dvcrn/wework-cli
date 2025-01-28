@@ -207,6 +207,73 @@ func (w *WeWork) GetPastBookings() ([]*Booking, error) {
 }
 
 func (w *WeWork) MxgPollQuote(date time.Time, space *Workspace) (*BookingQuote, error) {
+func (w *WeWork) GetBootstrap() (*AppBootstrapResponse, error) {
+	url := "https://members.wework.com/workplaceone/api/app-bootstrap/bootstrap"
+
+	data := map[string]interface{}{
+		"InvalidateCache": false,
+		"platform":        1,
+		"FeatureFlags": map[string]interface{}{
+			"WeGateMemberWebFlags": []string{
+				"WG_WEWORK_W_HOMEPAGE_PRINTING",
+				"WG_WEWORK_W_MEMWEB_ANNOUNCEMENTS_FROM_CONTENTFUL",
+				"WG_WEWORK_W_MEMWEB_BUILDING_GUIDE_UPCOMING_BOOKINGS",
+				"WG_WEWORK_W_MEMWEB_ENTERPRISE",
+				"WG_WEWORK_W_MEMWEB_EVENTS",
+				"WG_WEWORK_W_MEMWEB_SUPPORT_HELP_FAQ",
+				"WG_WEWORK_W_MEMWEB_TOP_BANNER_ALL_ACCESS",
+				"WG_WEWORK_W_MEMWEB_WEWORK_BRANDING",
+				"WG_WEWORK_W_ROOMS_MEDALLIA_SURVEY",
+				"WG_WEWORK_W_MEMWEB_WEB_THIRD_PARTY_SPACES",
+				"WG_WEWORK_W_MEMWEB_GUEST_POLICY_ENFORCEMENT",
+				"WG_WEWORK_W_MEMWEB_PRINT_DRIVER_UPDATE_ROLLOUT",
+				"WG_WEWORK_W_MEMWEB_BUILDING_GUIDE_ORGANON_MODULES",
+			},
+			"WeGateiOSFlags":     []string{},
+			"WeGateAndroidFlags": []string{},
+		},
+		"PermissionRequest": map[string]interface{}{
+			"MENAflags": []string{
+				"mena_module_building_guide_categories",
+				"mena_module_account_manager",
+				"mena_module_daily_desks",
+				"mena_module_print_hub",
+				"mena_module_events",
+			},
+		},
+		"AppVersion":         nil,
+		"CurrentAccountUUID": "",
+	}
+
+	resp, err := w.doRequest(http.MethodPost, url, data)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result AppBootstrapResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &result, nil
+}
+
+func (w *WeWork) GetUserProfile() (*UserProfileResponse, error) {
+	url := "https://members.wework.com/workplaceone/api/wework-yardi/user/get-user-profile"
+	resp, err := w.doRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result UserProfileResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &result, nil
+}
 	loc, err := time.LoadLocation(space.Location.TimeZone)
 	if err != nil {
 		return nil, err
