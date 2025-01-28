@@ -1,6 +1,8 @@
 package wework
 
-import "time"
+import (
+	"time"
+)
 
 type SharedWorkspaceResponse struct {
 	Limit    int `json:"limit"`
@@ -19,6 +21,7 @@ type BookSpaceResponse struct {
 	Errors                  []string `json:"errors"`
 	IsErrored               bool     `json:"isErrorred"`
 	ReservationUUID         string   `json:"reservationUUID"`
+	ErrorStatusCode         string   `json:"errorStatusCode"`
 }
 
 type GeoLocation struct {

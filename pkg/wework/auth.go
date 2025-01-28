@@ -1,4 +1,4 @@
-package auth
+package wework
 
 import (
 	"bytes"
@@ -7,9 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"strings"
 
 	"net/url"
@@ -27,13 +25,13 @@ type Auth0Config struct {
 type WeWorkAuth struct {
 	username      string
 	password      string
-	client        *http.Client
+	client        *BaseClient
 	config        *Auth0Config
 	codeVerifier  string
 	codeChallenge string
 }
 
-type TokenResponse struct {
+type OAuthTokenResponse struct {
 	IDToken      string `json:"id_token"`
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -42,28 +40,69 @@ type TokenResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
-type WeWorkLoginResponse struct {
-	Token   string `json:"token"`
-	IDToken string `json:"idToken"`
+type LoginByAuth0TokenResponse struct {
+	Token            string `json:"token"`
+	IDToken          string `json:"idToken"`
+	UseRefreshTokens bool   `json:"useRefreshTokens"`
+	RefreshToken     string `json:"refreshToken"`
+	A0token          string `json:"a0token"`
+	SessionID        string `json:"sessionId"`
+	Username         string `json:"username"`
+	A0rtoken         string `json:"a0rtoken"`
+	A0Tokens         struct {
+		AccessToken  string `json:"access_token"`
+		Audience     string `json:"audience"`
+		ClientID     string `json:"client_id"`
+		ExpiresIn    int    `json:"expires_in"`
+		IDToken      string `json:"id_token"`
+		RefreshToken string `json:"refresh_token"`
+		Scope        string `json:"scope"`
+		TokenType    string `json:"token_type"`
+	} `json:"a0Tokens"`
+	AccessToken string `json:"accessToken"`
 }
 
+type WeWorkLoginError struct {
+	Message     string `json:"message"`
+	Name        string `json:"name"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	StatusCode  int    `json:"statusCode"`
+}
+
+func (e *WeWorkLoginError) Error() string {
+	return fmt.Sprintf("%s (%s)", e.Message, e.Code)
+}
+
+func (e *WeWorkLoginError) As(target interface{}) bool {
+	if p, ok := target.(*WeWorkLoginError); ok {
+		*p = *e
+		return true
+	}
+	return false
+}
+
+func (e *WeWorkLoginError) Is(target error) bool {
+	t, ok := target.(*WeWorkLoginError)
+	if !ok {
+		return false
+	}
+	return e.Code == t.Code
+}
 func NewWeWorkAuth(username, password string) (*WeWorkAuth, error) {
-	jar, err := cookiejar.New(nil)
+	baseClient, err := NewBaseClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cookie jar: %v", err)
+		return nil, err
 	}
 
-	client := &http.Client{
-		Jar: jar,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+	baseClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
 	auth := &WeWorkAuth{
 		username: username,
 		password: password,
-		client:   client,
+		client:   baseClient,
 	}
 
 	if err := auth.getAuth0Config(); err != nil {
@@ -84,20 +123,36 @@ func (w *WeWorkAuth) getAuth0Config() error {
 
 	resp, err := w.client.Get(baseURL + "?" + params.Encode())
 	if err != nil {
-		return fmt.Errorf("failed to get auth0 config: %v", err)
+		return fmt.Errorf("failed to get auth0 config: %w", err)
 	}
 	defer resp.Body.Close()
 
 	var config Auth0Config
 	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
-		return fmt.Errorf("failed to decode auth0 config: %v", err)
+		return fmt.Errorf("failed to decode auth0 config: %w", err)
 	}
 
 	w.config = &config
+	weWorkUrl, err := url.Parse("https://members.wework.com")
+	if err != nil {
+		return fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	w.client.Jar.SetCookies(weWorkUrl, []*http.Cookie{
+		{
+			Name:  "auth0.zE51Ep7FttlmtQV6ZEGyJKsY2jD1EtAu.is.authenticated",
+			Value: "true",
+		},
+		{
+			Name:  "_legacy_auth0.zE51Ep7FttlmtQV6ZEGyJKsY2jD1EtAu.is.authenticated",
+			Value: "true",
+		},
+	})
+
 	return nil
 }
 
-func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
+func (w *WeWorkAuth) Authenticate() (*LoginByAuth0TokenResponse, *OAuthTokenResponse, error) {
 	// Step 1: Get initial state
 	nonce := generateNonce()
 	authParams := url.Values{}
@@ -115,29 +170,29 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 	authURL := fmt.Sprintf("https://%s/authorize?%s", w.config.Domain, authParams.Encode())
 	resp, err := w.client.Get(authURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get auth URL: %v", err)
+		return nil, nil, fmt.Errorf("failed to get auth URL: %v", err)
 	}
 	defer resp.Body.Close()
 
 	loginURL := resp.Header.Get("Location")
 	if loginURL == "" {
-		return nil, fmt.Errorf("no login URL in response")
+		return nil, nil, fmt.Errorf("no login URL in response")
 	}
 
 	parsedURL, err := url.Parse(loginURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse login URL: %v", err)
+		return nil, nil, fmt.Errorf("failed to parse login URL: %v", err)
 	}
 
 	state := parsedURL.Query().Get("state")
 	if state == "" {
-		return nil, fmt.Errorf("no state in login URL")
+		return nil, nil, fmt.Errorf("no state in login URL")
 	}
 
 	// Handle IDP redirect
 	idpResp, err := w.client.Get(fmt.Sprintf("https://%s%s", w.config.Domain, loginURL))
 	if err != nil {
-		return nil, fmt.Errorf("failed to handle IDP redirect: %v", err)
+		return nil, nil, fmt.Errorf("failed to handle IDP redirect: %v", err)
 	}
 	defer idpResp.Body.Close()
 
@@ -174,40 +229,45 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 
 	loginBody, err := json.Marshal(loginData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal login data: %v", err)
+		return nil, nil, fmt.Errorf("failed to marshal login data: %v", err)
 	}
 
 	loginReq, err := http.NewRequest("POST", fmt.Sprintf("https://%s/usernamepassword/login", w.config.Domain), bytes.NewBuffer(loginBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create login request: %v", err)
+		return nil, nil, fmt.Errorf("failed to create login request: %v", err)
 	}
 
 	loginReq.Header.Set("Content-Type", "application/json")
 	loginResp, err := w.client.Do(loginReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to perform login: %v", err)
+		return nil, nil, fmt.Errorf("failed to perform login: %v", err)
 	}
 	defer loginResp.Body.Close()
 
 	if loginResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(loginResp.Body)
-		return nil, fmt.Errorf("login failed with status %d: %s", loginResp.StatusCode, string(body))
+		// try to parse into WeWorkLoginError
+		var loginError WeWorkLoginError
+		if err := json.NewDecoder(loginResp.Body).Decode(&loginError); err == nil {
+			return nil, nil, fmt.Errorf("login failed with error: %w", &loginError)
+		}
+
+		return nil, nil, fmt.Errorf("login failed with status %d", loginResp.StatusCode)
 	}
 
 	// Step 3: Extract form data
 	doc, err := goquery.NewDocumentFromReader(loginResp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse login response: %v", err)
+		return nil, nil, fmt.Errorf("failed to parse login response: %v", err)
 	}
 
 	form := doc.Find("form")
 	if form.Length() == 0 {
-		return nil, fmt.Errorf("no form found in response")
+		return nil, nil, fmt.Errorf("no form found in response")
 	}
 
 	formAction, exists := form.Attr("action")
 	if !exists {
-		return nil, fmt.Errorf("no form action found")
+		return nil, nil, fmt.Errorf("no form action found")
 	}
 
 	formData := url.Values{}
@@ -222,7 +282,7 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 	// Step 4: Submit form and handle redirects
 	formResp, err := w.client.PostForm(formAction, formData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to submit form: %v", err)
+		return nil, nil, fmt.Errorf("failed to submit form: %v", err)
 	}
 	defer formResp.Body.Close()
 
@@ -231,7 +291,7 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 	for currentResp.StatusCode >= 300 && currentResp.StatusCode < 400 {
 		redirectURL := currentResp.Header.Get("Location")
 		if redirectURL == "" {
-			return nil, fmt.Errorf("no redirect URL found")
+			return nil, nil, fmt.Errorf("no redirect URL found")
 		}
 
 		if !strings.HasPrefix(redirectURL, "http") {
@@ -241,7 +301,7 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 		if strings.Contains(redirectURL, "code=") {
 			parsedRedirect, err := url.Parse(redirectURL)
 			if err != nil {
-				return nil, fmt.Errorf("failed to parse redirect URL: %v", err)
+				return nil, nil, fmt.Errorf("failed to parse redirect URL: %v", err)
 			}
 			code = parsedRedirect.Query().Get("code")
 			break
@@ -249,13 +309,13 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 
 		currentResp, err = w.client.Get(redirectURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to follow redirect: %v", err)
+			return nil, nil, fmt.Errorf("failed to follow redirect: %v", err)
 		}
 		defer currentResp.Body.Close()
 	}
 
 	if code == "" {
-		return nil, fmt.Errorf("no code found in redirects")
+		return nil, nil, fmt.Errorf("no code found in redirects")
 	}
 
 	// Step 5: Exchange code for tokens
@@ -269,31 +329,32 @@ func (w *WeWorkAuth) Authenticate() (*WeWorkLoginResponse, error) {
 
 	tokenBody, err := json.Marshal(tokenData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal token data: %v", err)
+		return nil, nil, fmt.Errorf("failed to marshal token data: %v", err)
 	}
 
 	tokenReq, err := http.NewRequest("POST", fmt.Sprintf("https://%s/oauth/token", w.config.Domain), bytes.NewBuffer(tokenBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create token request: %v", err)
+		return nil, nil, fmt.Errorf("failed to create token request: %v", err)
 	}
 
 	tokenReq.Header.Set("Content-Type", "application/json")
 	tokenResp, err := w.client.Do(tokenReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to exchange code for tokens: %v", err)
+		return nil, nil, fmt.Errorf("failed to exchange code for tokens: %v", err)
 	}
 	defer tokenResp.Body.Close()
 
-	var tokens TokenResponse
+	var tokens OAuthTokenResponse
 	if err := json.NewDecoder(tokenResp.Body).Decode(&tokens); err != nil {
-		return nil, fmt.Errorf("failed to decode token response: %v", err)
+		return nil, nil, fmt.Errorf("failed to decode token response: %v", err)
 	}
 
 	// Step 6: Login to WeWork backend
-	return w.loginToWeWork(&tokens)
+	res, err := w.loginToWeWork(&tokens)
+	return res, &tokens, err
 }
 
-func (w *WeWorkAuth) loginToWeWork(tokens *TokenResponse) (*WeWorkLoginResponse, error) {
+func (w *WeWorkAuth) loginToWeWork(tokens *OAuthTokenResponse) (*LoginByAuth0TokenResponse, error) {
 	loginURL := "https://members.wework.com/workplaceone/api/auth0/login-by-auth0-token"
 	loginData := map[string]interface{}{
 		"id_token":      tokens.IDToken,
@@ -326,7 +387,7 @@ func (w *WeWorkAuth) loginToWeWork(tokens *TokenResponse) (*WeWorkLoginResponse,
 	}
 	defer resp.Body.Close()
 
-	var loginResp WeWorkLoginResponse
+	var loginResp LoginByAuth0TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
 		return nil, fmt.Errorf("failed to decode WeWork login response: %v", err)
 	}

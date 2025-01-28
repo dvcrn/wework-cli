@@ -6,17 +6,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dvcrn/wework-cli/pkg/auth"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	username     string
-	password     string
-	locationUUID string
-	city         string
+	username         string
+	password         string
+	locationUUID     string
+	city             string
 	name             string
 	date             string
 	calendarPath     string
@@ -111,17 +110,18 @@ func authenticate() (*wework.WeWork, error) {
 		return nil, fmt.Errorf("username and password are required. Set WEWORK_USERNAME and WEWORK_PASSWORD environment variables or use --username and --password flags")
 	}
 
-	weworkAuth, err := auth.NewWeWorkAuth(username, password)
+	weworkAuth, err := wework.NewWeWorkAuth(username, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create WeWork auth: %v", err)
 	}
 
-	result, err := weworkAuth.Authenticate()
+	loginResult, _, err := weworkAuth.Authenticate()
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed: %v", err)
 	}
 
-	return wework.NewWeWork(result.Token, result.IDToken), nil
+	return wework.NewWeWork(loginResult.AccessToken, loginResult.A0token), nil
+}
 
 func runMe(cmd *cobra.Command, args []string) error {
 	ww, err := authenticate()
@@ -364,10 +364,21 @@ func runBook(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Attempting to book: %s for %s\n", space.Location.Name, bookingDate)
 
 		bookRes, err := ww.PostBooking(bookingDate, &space)
+
+		// bookRes, err := ww.PostBookingAPI(bookingDate, &space)
 		if err != nil {
 			fmt.Printf("Booking failed: %v\n", err)
 			continue
 		}
+
+		if bookRes.IsErrored {
+			fmt.Printf("Booking failed: %s\n", bookRes.ErrorStatusCode)
+			for _, err := range bookRes.Errors {
+				fmt.Printf("  %s\n", err)
+			}
+			continue
+		}
+
 		fmt.Printf("Booking status: %s - %s\n",
 			map[bool]string{true: "Success", false: "Failed"}[bookRes.ReservationUUID != ""],
 			bookRes.BookingProcessingStatus)
