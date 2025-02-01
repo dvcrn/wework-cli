@@ -8,7 +8,6 @@ import (
 
 	"github.com/dvcrn/wework-cli/cmd/wework/commands"
 	"github.com/dvcrn/wework-cli/pkg/wework"
-
 	"github.com/spf13/cobra"
 )
 
