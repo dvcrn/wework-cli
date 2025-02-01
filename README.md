@@ -27,7 +27,9 @@ go install github.com/dvcrn/wework-cli/cmd/wework@latest
 After installation, you can use the `wework` command in your terminal:
 
 
+```bash
 wework [action] [date] [options]
+```
 
 
 Available actions:
@@ -45,9 +47,10 @@ Options:
 
 Authentication can be provided either through command line arguments or environment variables:
 
-
+```bash
 export WEWORK_USERNAME=your_username
 export WEWORK_PASSWORD=your_password
+```
 
 
 Examples:
@@ -105,9 +108,9 @@ wework --help
 To set up the development environment:
 
 1. Clone the repository
-2. Install the dependencies: `pip install -r requirements.txt`
-3. Make your changes
-4. Run tests (if available)
+2. Install Go dependencies: `go mod download`
+3. Build the project: `go build ./cmd/wework`
+4. Run tests: `go test ./...`
 5. Submit a pull request
 
 ## License
