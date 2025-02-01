@@ -403,3 +403,19 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookSpaceRespon
 
 	return &result, nil
 }
+
+func (w *WeWork) GetCityDetails() ([]*CityDetailsResponse, error) {
+	url := "https://members.wework.com/workplaceone/api/wework-yardi/location/get-city-details"
+	resp, err := w.doRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result []*CityDetailsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return result, nil
+}

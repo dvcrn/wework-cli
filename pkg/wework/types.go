@@ -410,3 +410,61 @@ type Country struct {
 	Code   int    `json:"code"`
 	Region int    `json:"region"`
 }
+
+type CityDetailsResponse struct {
+	Name                 string         `json:"name"`
+	MarketGeo            MarketGeo      `json:"marketgeo"`
+	CountryGeo           CountryGeo     `json:"countrygeo"`
+	NearbyLocation       NearbyLocation `json:"nearby_location"`
+	NearbyLocationsCount int            `json:"nearby_locations_count"`
+}
+
+type MarketGeo struct {
+	ID               string  `json:"id"`
+	Latitude         float64 `json:"latitude"`
+	Longitude        float64 `json:"longitude"`
+	Name             string  `json:"name"`
+	NameAbbreviation string  `json:"name_abbreviation"`
+}
+
+type CountryGeo struct {
+	ID               string  `json:"id"`
+	ISO              string  `json:"iso"`
+	Latitude         float64 `json:"latitude"`
+	Longitude        float64 `json:"longitude"`
+	Name             string  `json:"name"`
+	NameAbbreviation string  `json:"name_abbreviation"`
+}
+
+type NearbyLocation struct {
+	UUID                          string  `json:"uuid"`
+	DefaultName                   string  `json:"default_name"`
+	DefaultCountry                string  `json:"default_country"`
+	NameOverride                  string  `json:"name_override"`
+	Description                   string  `json:"description"`
+	Latitude                      float64 `json:"latitude"`
+	Longitude                     float64 `json:"longitude"`
+	DefaultLocale                 string  `json:"default_locale"`
+	TimeZone                      string  `json:"time_zone"`
+	DefaultCurrency               string  `json:"default_currency"`
+	Line1                         string  `json:"line1"`
+	Line2                         string  `json:"line2"`
+	City                          string  `json:"city"`
+	State                         string  `json:"state"`
+	Zip                           string  `json:"zip"`
+	Address                       string  `json:"address"`
+	IsOpen                        bool    `json:"is_open"`
+	Slug                          string  `json:"slug"`
+	Phone                         string  `json:"phone"`
+	PhoneNormalized               string  `json:"phone_normalized"`
+	Code                          string  `json:"code"`
+	EntranceInstructions          string  `json:"entrance_instructions"`
+	EntranceInstructionsLocalized string  `json:"entrance_instructions_localized"`
+	DefaultCountryCode            string  `json:"default_country_code"`
+	NormalizedDefaultCurrency     string  `json:"normalized_default_currency"`
+	IsFavorite                    bool    `json:"is_favorite"`
+	IsPublished                   bool    `json:"is_published"`
+	AccessType                    string  `json:"access_type"`
+	OnDemandEnabled               bool    `json:"on_demand_enabled"`
+	BrandName                     string  `json:"brand_name"`
+}
