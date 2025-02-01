@@ -37,13 +37,15 @@ Available actions:
 - `desks`: List available desks
 - `locations`: List WeWork locations in a city
 - `calendar`: Generate an iCalendar (.ics) file containing your WeWork bookings
+- `me`: Get your profile information
 
 Options:
 - `--location-uuid`: Location UUID for booking (optional for 'book' action)
 - `--city`: City name (required for 'locations' action, optional for 'book' action)
 - `--name`: Space name (optional for 'book' action, requires --city)
-- `--username`: Username (required if WEWORK_USERNAME env var is not set)
-- `--password`: Password (required if WEWORK_PASSWORD env var is not set)
+- `--username`: Username (can be set via WEWORK_USERNAME env var)
+- `--password`: Password (can be set via WEWORK_PASSWORD env var)
+- `--include-bootstrap`: Include bootstrap data (optional for 'me' action)
 
 Authentication can be provided either through command line arguments or environment variables:
 
@@ -95,6 +97,14 @@ wework desks 2023-06-01 --city "New York" --username your_username --password yo
 5. Generate a calendar file for importing into calendar apps:
    
    wework calendar --username your_username --password your_password
+   
+
+6. Show profile information:
+   
+   wework me --username your_username --password your_password
+   
+   # With bootstrap data:
+   wework me --include-bootstrap
    
 
 For more information on available options, use:
