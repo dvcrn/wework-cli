@@ -3,29 +3,59 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
 
-func NewFeaturesCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
+func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 	var locationUUID string
+	var city string
+	var name string
 	var amenitiesOnly bool
 	var outputJSON bool
 
 	cmd := &cobra.Command{
-		Use:   "features",
-		Short: "Get features and instructions for a WeWork location",
-		Long:  `Get detailed features, amenities, and instructions for a specific WeWork location.`,
+		Use:   "info",
+		Short: "Get detailed information for a WeWork location",
+		Long:  `Get detailed information, features, amenities, and instructions for a specific WeWork location.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ww, err := authenticate()
 			if err != nil {
 				return err
 			}
 
+			// If locationUUID is not provided, try to find it using city and name
+			if locationUUID == "" {
+				if city == "" || name == "" {
+					return fmt.Errorf("either --location-uuid or both --city and --name must be provided")
+				}
+
+				// Get locations by city
+				res, err := ww.GetLocationsByGeo(city)
+				if err != nil {
+					return fmt.Errorf("failed to get locations: %v", err)
+				}
+
+				// Find the location by name
+				found := false
+				for _, location := range res.LocationsByGeo {
+					if strings.Contains(strings.ToLower(location.Name), strings.ToLower(name)) {
+						locationUUID = location.UUID
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return fmt.Errorf("no location found with name containing '%s' in city '%s'", name, city)
+				}
+			}
+
 			res, err := ww.GetLocationFeatures(locationUUID, amenitiesOnly)
 			if err != nil {
-				return fmt.Errorf("failed to get location features: %v", err)
+				return fmt.Errorf("failed to get location information: %v", err)
 			}
 
 			if outputJSON {
@@ -43,6 +73,7 @@ func NewFeaturesCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 
 			location := res.Locations[0]
 			fmt.Printf("Location: %s\n", location.Name)
+			fmt.Printf("UUID: %s\n", location.UUID)
 			fmt.Printf("Address: %s, %s, %s\n", location.Address.Line1, location.Address.City, location.Address.Country)
 			fmt.Printf("Support Email: %s\n", location.SupportEmail)
 			fmt.Printf("Phone: %s\n", location.Phone)
@@ -76,9 +107,10 @@ func NewFeaturesCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 	}
 
 	cmd.Flags().StringVar(&locationUUID, "location-uuid", "", "UUID of the WeWork location")
+	cmd.Flags().StringVar(&city, "city", "", "City name (used with --name to find location)")
+	cmd.Flags().StringVar(&name, "name", "", "Location name (used with --city to find location)")
 	cmd.Flags().BoolVar(&amenitiesOnly, "amenities-only", false, "Only fetch amenities information")
 	cmd.Flags().BoolVar(&outputJSON, "json", false, "Output raw JSON response")
-	cmd.MarkFlagRequired("location-uuid")
 
 	return cmd
 }
