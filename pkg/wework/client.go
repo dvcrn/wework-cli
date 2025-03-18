@@ -14,14 +14,23 @@ type WeWork struct {
 	client *BaseClient
 }
 
-func NewWeWork(authorization, weworkAuth string) *WeWork {
+func NewWeWork(token string) *WeWork {
 	client, err := NewBaseClient()
 	if err != nil {
 		panic(err)
 	}
 
-	client.headers["Authorization"] = []string{"Bearer " + authorization}
-	client.headers["WeWorkAuth"] = []string{"Bearer " + weworkAuth}
+	// Use the same token for both headers
+	client.headers["Authorization"] = []string{"Bearer " + token}
+	client.headers["WeWorkAuth"] = []string{"Bearer " + token}
+	
+	// Update headers to match the working request
+	client.headers["Request-Source"] = []string{"MemberWeb/WorkplaceOne/Prod"}
+	client.headers["User-Agent"] = []string{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15"}
+	client.headers["fe-pg"] = []string{"/workplaceone/content2/dashboard"}
+	client.headers["Sec-Fetch-Site"] = []string{"same-origin"}
+	client.headers["Sec-Fetch-Mode"] = []string{"cors"}
+	client.headers["Sec-Fetch-Dest"] = []string{"empty"}
 
 	return &WeWork{
 		client: client,
@@ -144,7 +153,7 @@ func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*Share
 }
 
 func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
-	url := "https://members.wework.com/workplaceone/api/ext-booking/get-wework-upcoming-booking-data"
+	url := "https://members.wework.com/workplaceone/api/common-booking/upcoming-bookings"
 	resp, err := w.doRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -161,16 +170,16 @@ func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
 	// fmt.Println(buf.String())
 
 	// reader.Seek(0, 0)
-	var result []*Booking
+	var result UpcomingBookingsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
-	for _, booking := range result {
+	for _, booking := range result.Bookings {
 		w.adjustBookingTimezone(booking)
 	}
 
-	return result, nil
+	return result.Bookings, nil
 }
 
 func (w *WeWork) adjustBookingTimezone(booking *Booking) {

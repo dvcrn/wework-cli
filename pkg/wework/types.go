@@ -39,7 +39,7 @@ type GeoLocation struct {
 }
 
 type UpcomingBookingsResponse struct {
-	Bookings []Booking `json:"bookings"`
+	Bookings []*Booking `json:"WeWorkBookings"`
 }
 
 type Booking struct {
