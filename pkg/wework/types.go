@@ -422,6 +422,65 @@ type CityDetailsResponse struct {
 	NearbyLocationsCount int            `json:"nearby_locations_count"`
 }
 
+type LocationFeaturesResponse struct {
+	Locations []LocationFeatures `json:"locations"`
+}
+
+type LocationFeatures struct {
+	UUID                 string             `json:"uuid"`
+	Name                 string             `json:"name"`
+	Description          string             `json:"description"`
+	SupportEmail         string             `json:"supportEmail"`
+	Phone                string             `json:"phone"`
+	PhoneNormalized      string             `json:"phoneNormalized"`
+	Currency             string             `json:"currency"`
+	TimeZone             string             `json:"timeZone"`
+	Latitude             float64            `json:"latitude"`
+	Longitude            float64            `json:"longitude"`
+	Address              Address            `json:"address"`
+	EntranceAddress      Address            `json:"entranceAddress"`
+	PrimaryTeamMember    TeamMember         `json:"primaryTeamMember"`
+	Images               []LocationImage    `json:"images"`
+	Amenities            []Amenity          `json:"amenities"`
+	Details              LocationDetails    `json:"details"`
+	TransitInfo          TransitInfo        `json:"transitInfo"`
+	MemberEntranceInstructions string       `json:"memberEntranceInstructions"`
+	TourInstructions     string             `json:"tourInstructions"`
+	ParkingInstructions  string             `json:"parkingInstructions"`
+	CommunityBarFloor    CommunityBarFloor  `json:"communityBarFloor"`
+	BrandName            string             `json:"brandName"`
+	HasThirdPartyDisplay bool               `json:"hasThirdPartyDisplay"`
+	IsMigrated           bool               `json:"isMigrated"`
+}
+
+type LocationImage struct {
+	UUID     string `json:"uuid"`
+	Caption  string `json:"caption"`
+	Category string `json:"category"`
+	URL      string `json:"url"`
+}
+
+type LocationDetails struct {
+	HasExtendedHours bool              `json:"hasExtendedHours"`
+	OperatingHours   []OperatingDetail `json:"operatingHours"`
+	CommunityBar     CommunityBar      `json:"communityBar"`
+}
+
+type OperatingDetail struct {
+	DayOfWeek string `json:"dayOfWeek"`
+	TimeOpen  string `json:"timeOpen,omitempty"`
+	TimeClose string `json:"timeClose,omitempty"`
+}
+
+type CommunityBar struct {
+	FloorNumber int `json:"floorNumber"`
+}
+
+type CommunityBarFloor struct {
+	UUID string `json:"uuid"`
+	Name string `json:"name"`
+}
+
 type MarketGeo struct {
 	ID               string  `json:"id"`
 	Latitude         float64 `json:"latitude"`

@@ -37,6 +37,7 @@ func main() {
 		commands.NewBookCommand(authenticate),
 		commands.NewCalendarCommand(authenticate),
 		commands.NewMeCommand(authenticate),
+		commands.NewFeaturesCommand(authenticate),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
