@@ -2,6 +2,7 @@ package wework
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,17 +25,43 @@ func NewWeWork(token string) *WeWork {
 	client.headers["Authorization"] = []string{"Bearer " + token}
 	client.headers["WeWorkAuth"] = []string{"Bearer " + token}
 	
-	// Update headers to match the working request
-	client.headers["Request-Source"] = []string{"MemberWeb/WorkplaceOne/Prod"}
-	client.headers["User-Agent"] = []string{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15"}
-	client.headers["fe-pg"] = []string{"/workplaceone/content2/dashboard"}
-	client.headers["Sec-Fetch-Site"] = []string{"same-origin"}
-	client.headers["Sec-Fetch-Mode"] = []string{"cors"}
-	client.headers["Sec-Fetch-Dest"] = []string{"empty"}
+	// Extract UUID from token and add it to headers
+	userUUID := extractUUIDFromToken(token)
+	if userUUID != "" {
+		client.headers["WeWorkUUID"] = []string{userUUID}
+	}
 
 	return &WeWork{
 		client: client,
 	}
+}
+
+// Helper function to extract UUID from JWT token
+func extractUUIDFromToken(token string) string {
+	// Split the token to get the payload
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	
+	// Decode the payload
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	
+	// Parse the JSON
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	
+	// Extract the UUID
+	if uuid, ok := claims["https://wework.com/user_uuid"].(string); ok {
+		return uuid
+	}
+	
+	return ""
 }
 
 func (w *WeWork) doRequest(method, url string, data interface{}) (*http.Response, error) {
@@ -280,7 +307,18 @@ func (w *WeWork) GetUserProfile() (*UserProfileResponse, error) {
 	return &result, nil
 }
 
-func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookSpaceResponse, error) {
+func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookingResponse, error) {
+	// First get the quote
+	quote, err := w.getBookingQuote(date, space)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get booking quote: %v", err)
+	}
+
+	// Then create the booking
+	return w.createBooking(date, space, quote)
+}
+
+func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
 	loc, err := time.LoadLocation(space.Location.TimeZone)
 	if err != nil {
 		return nil, err
@@ -290,44 +328,43 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookSpaceRespon
 	startTime := dateInTz.Format("2006-01-02") + "T00:00:00" + dateInTz.Format("-07:00")
 	endTime := dateInTz.Format("2006-01-02") + "T23:59:59" + dateInTz.Format("-07:00")
 
-	// First request - mxg-poll-quote
-	quoteURL := "https://members.wework.com/workplaceone/api/ext-booking/mxg-poll-quote?APIen=0"
+	quoteURL := "https://members.wework.com/workplaceone/api/common-booking/quote"
 	quoteData := map[string]interface{}{
-		"reservableId":         space.UUID,
-		"type":                 4,
-		"creditsUsed":          1,
-		"currency":             "com.wework.credits",
-		"TriggerCalenderEvent": true,
-		"mailData": map[string]interface{}{
-			"dayFormatted":       dateInTz.Format("Monday, January 2"),
-			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
-			"endTimeFormatted":   fmt.Sprintf("%s AM", space.CloseTime),
-			"floorAddress":       "",
-			"locationAddress":    space.Location.Address.Line1,
-			"creditsUsed":        "1",
-			"Capacity":           "1",
-			"TimezoneUsed":       fmt.Sprintf("GMT %s", space.Location.TimeZone),
-			"TimezoneIana":       space.Location.TimeZone,
-			"startDateTime":      fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
-			"endDateTime":        fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
-			"locationName":       space.Location.Name,
-			"locationCity":       space.Location.Address.City,
-			"locationCountry":    space.Location.Address.Country,
-			"locationState":      space.Location.Address.State,
-		},
-		"coworkingPropertyId": 0,
-		"locationId":          space.Location.UUID,
+		"SpaceType": 4,
+		"ReservationID": "",
+		"TriggerCalendarEvent": true,
 		"Notes": map[string]interface{}{
 			"locationAddress": space.Location.Address.Line1,
-			"locationCity":    space.Location.Address.City,
-			"locationState":   space.Location.Address.State,
+			"locationCity": space.Location.Address.City,
+			"locationState": space.Location.Address.State,
 			"locationCountry": space.Location.Address.Country,
-			"locationName":    space.Location.Name,
+			"locationName": space.Location.Name,
 		},
-		"isUpdateBooking": false,
-		"reservationId":   "",
-		"startTime":       startTime,
-		"endTime":         endTime,
+		"MailData": map[string]interface{}{
+			"dayFormatted": dateInTz.Format("Monday, January 2"),
+			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
+			"endTimeFormatted": fmt.Sprintf("%s PM", space.CloseTime),
+			"floorAddress": "",
+			"locationAddress": space.Location.Address.Line1,
+			"creditsUsed": "0",
+			"Capacity": "1",
+			"TimezoneUsed": fmt.Sprintf("GMT %s", space.Location.TimezoneOffset),
+			"TimezoneIana": space.Location.TimeZone,
+			"startDateTime": fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
+			"endDateTime": fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
+			"locationName": space.Location.Name,
+			"locationCity": space.Location.Address.City,
+			"locationCountry": space.Location.Address.Country,
+			"locationState": space.Location.Address.State,
+		},
+		"LocationType": 0,
+		"UTCOffset": space.Location.TimezoneOffset,
+		"Currency": "com.wework.credits",
+		"LocationID": space.Location.UUID,
+		"SpaceID": space.UUID,
+		"WeWorkSpaceID": space.UUID,
+		"StartTime": startTime,
+		"EndTime": endTime,
 	}
 
 	quoteResp, err := w.doRequest(http.MethodPost, quoteURL, quoteData)
@@ -336,10 +373,23 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookSpaceRespon
 	}
 	defer quoteResp.Body.Close()
 
-	var quote BookingQuote
+	var quote QuoteResponse
 	if err := json.NewDecoder(quoteResp.Body).Decode(&quote); err != nil {
 		return nil, fmt.Errorf("failed to decode quote response: %v", err)
 	}
+
+	return &quote, nil
+}
+
+func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteResponse) (*BookingResponse, error) {
+	loc, err := time.LoadLocation(space.Location.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+
+	dateInTz := date.In(loc)
+	startTime := dateInTz.Format("2006-01-02") + "T00:00:00" + dateInTz.Format("-07:00")
+	endTime := dateInTz.Format("2006-01-02") + "T23:59:59" + dateInTz.Format("-07:00")
 
 	if daysUntilBooking := time.Until(dateInTz); daysUntilBooking > 30*24*time.Hour {
 		fmt.Println("!! Booking too far in the future, will try to book anyway, make sure you check the booking is correct !!")
@@ -350,53 +400,45 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookSpaceRespon
 		endTime = adjustedDate.Format("2006-01-02") + "T23:59:59" + dateInTz.Format("-07:00")
 	}
 
-	// Second request - post-booking
-	bookingURL := "https://members.wework.com/workplaceone/api/ext-booking/post-booking?APIen=0"
+	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
 	bookingData := map[string]interface{}{
-		"reservableId":         space.UUID,
-		"type":                 4,
-		"creditsUsed":          quote.GrandTotal.Amount,
-		"orderId":              quote.UUID,
-		"ApplicationType":      "WorkplaceOne",
-		"PlatformType":         "iOS_APP",
-		"TriggerCalenderEvent": true,
-		"mailData": map[string]interface{}{
-			"dayFormatted":       dateInTz.Format("Monday, January 2"),
-			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
-			"endTimeFormatted":   fmt.Sprintf("%s AM", space.CloseTime),
-			"floorAddress":       "",
-			"locationAddress":    space.Location.Address.Line1,
-			"creditsUsed":        "1",
-			"Capacity":           space.Capacity,
-			"TimezoneUsed":       space.Location.TimezoneOffset,
-			"TimezoneIana":       space.Location.TimeZone,
-			// "startDateTime":      "2025-02-26 08:30",
-			// "endDateTime":        "2025-02-26 20:00",
-			"startDateTime":   fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
-			"endDateTime":     fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
-			"locationName":    space.Location.Address.Line1,
-			"locationCity":    space.Location.Address.City,
-			"locationCountry": space.Location.Address.Country,
-			"locationState":   space.Location.Address.State,
-		},
-		"coworkingPropertyId": 0,
-		"applicationType":     "WorkplaceOne",
-		"platformType":        "iOS_APP",
-		"locationId":          space.Location.UUID,
+		"ApplicationType": "WorkplaceOne",
+		"PlatformType": "iOS_APP",
+		"SpaceType": 4,
+		"ReservationID": "",
+		"TriggerCalendarEvent": true,
 		"Notes": map[string]interface{}{
-			"spaceName":       space.Location.Name,
+			"spaceName": space.Location.Name,
 			"locationAddress": space.Location.Address.Line1,
-			"locationCity":    space.Location.Address.City,
-			"locationState":   space.Location.Address.State,
+			"locationCity": space.Location.Address.City,
+			"locationState": space.Location.Address.State,
 			"locationCountry": space.Location.Address.Country,
-			"locationName":    space.Location.Address.Line1,
+			"locationName": space.Location.Address.Line1,
 		},
-		"isUpdateBooking": false,
-		"reservationId":   "",
-		// "startTime":       "2025-02-26T00:00:00+09:00",
-		// "endTime":         "2025-02-26T23:59:59+09:00",
-		"startTime": startTime,
-		"endTime":   endTime,
+		"MailData": map[string]interface{}{
+			"dayFormatted": dateInTz.Format("Monday, January 2"),
+			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
+			"endTimeFormatted": fmt.Sprintf("%s PM", space.CloseTime),
+			"floorAddress": "",
+			"locationAddress": space.Location.Address.Line1,
+			"creditsUsed": "0",
+			"Capacity": "1",
+			"TimezoneUsed": fmt.Sprintf("GMT %s", space.Location.TimezoneOffset),
+			"TimezoneIana": space.Location.TimeZone,
+			"startDateTime": fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
+			"endDateTime": fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
+			"locationName": space.Location.Address.Line1,
+			"locationCity": space.Location.Address.City,
+			"locationCountry": space.Location.Address.Country,
+			"locationState": space.Location.Address.State,
+		},
+		"LocationType": 0,
+		"UTCOffset": space.Location.TimezoneOffset,
+		"LocationID": space.Location.UUID,
+		"SpaceID": space.UUID,
+		"WeWorkSpaceID": space.UUID,
+		"StartTime": startTime,
+		"EndTime": endTime,
 	}
 
 	bookingResp, err := w.doRequest(http.MethodPost, bookingURL, bookingData)
@@ -405,7 +447,7 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookSpaceRespon
 	}
 	defer bookingResp.Body.Close()
 
-	var result BookSpaceResponse
+	var result BookingResponse
 	if err := json.NewDecoder(bookingResp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode booking response: %v", err)
 	}

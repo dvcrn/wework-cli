@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/dvcrn/wework-cli/cmd/wework/commands"
 	"github.com/dvcrn/wework-cli/pkg/wework"
@@ -31,7 +29,6 @@ func main() {
 
 	rootCmd.PersistentFlags().StringVar(&username, "username", os.Getenv("WEWORK_USERNAME"), "WeWork username")
 	rootCmd.PersistentFlags().StringVar(&password, "password", os.Getenv("WEWORK_PASSWORD"), "WeWork password")
-
 
 	rootCmd.AddCommand(
 		commands.NewLocationsCommand(authenticate),
@@ -63,11 +60,6 @@ func authenticate() (*wework.WeWork, error) {
 		return nil, fmt.Errorf("authentication failed: %v", err)
 	}
 
-	return wework.NewWeWork(loginResult.AccessToken, loginResult.A0token), nil
+	// Use the same token for both authorization headers
+	return wework.NewWeWork(loginResult.A0token), nil
 }
-
-
-
-
-
-

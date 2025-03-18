@@ -132,17 +132,15 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 					continue
 				}
 
-				if bookRes.IsErrored {
-					fmt.Printf("Booking failed: %s\n", bookRes.ErrorStatusCode)
+				if bookRes.BookingStatus != "BookingSuccess" {
+					fmt.Printf("Booking failed: %s\n", bookRes.BookingStatus)
 					for _, err := range bookRes.Errors {
 						fmt.Printf("  %s\n", err)
 					}
 					continue
 				}
 
-				fmt.Printf("Booking status: %s - %s\n",
-					map[bool]string{true: "Success", false: "Failed"}[bookRes.ReservationUUID != ""],
-					bookRes.BookingProcessingStatus)
+				fmt.Printf("Booking successful! Reservation ID: %s\n", bookRes.ReservationID)
 			}
 
 			return nil

@@ -16,12 +16,10 @@ type LocationsByGeoResponse struct {
 	LocationsByGeo []GeoLocation `json:"locationsByGeo"`
 }
 
-type BookSpaceResponse struct {
-	BookingProcessingStatus string   `json:"bookingProcessingStatus"`
-	Errors                  []string `json:"errors"`
-	IsErrored               bool     `json:"isErrorred"`
-	ReservationUUID         string   `json:"reservationUUID"`
-	ErrorStatusCode         string   `json:"errorStatusCode"`
+type BookingResponse struct {
+	BookingStatus  string   `json:"BookingStatus"`
+	Errors        []string  `json:"Errors"`
+	ReservationID string    `json:"ReservationID"`
 }
 
 type GeoLocation struct {
@@ -218,18 +216,23 @@ type Seat struct {
 	Available int `json:"available"`
 }
 
-type BookingQuote struct {
-	UUID          string      `json:"uuid"`
-	QuoteStatus   int         `json:"quoteStatus"`
-	StatusDetails []string    `json:"statusDetails"`
-	GrandTotal    *Price      `json:"grandTotal"`
-	SubTotal      *Price      `json:"subTotal"`
-	Taxes         []*Price    `json:"taxes"`
-	LineItems     []*LineItem `json:"lineItems"`
-	Adjustments   []*Price    `json:"adjustments"`
+type QuoteResponse struct {
+	UUID          string         `json:"uuid"`
+	QuoteStatus   int           `json:"quoteStatus"`
+	StatusDetails []interface{} `json:"statusDetails"`
+	GrandTotal    Money         `json:"grandTotal"`
+	SubTotal      Money         `json:"subTotal"`
+	Taxes         []interface{} `json:"taxes"`
+	LineItems     []LineItem    `json:"lineItems"`
+	Adjustments   []interface{} `json:"adjustments"`
 }
 
-type LineItem struct{}
+type Money struct {
+	Currency string  `json:"currency"`
+	Amount   float64 `json:"amount"`
+}
+
+type LineItem struct {}
 
 type AppBootstrapRequest struct {
 	IsCAKube         bool   `json:"isCAKube"`
