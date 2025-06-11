@@ -17,9 +17,9 @@ type LocationsByGeoResponse struct {
 }
 
 type BookingResponse struct {
-	BookingStatus  string   `json:"BookingStatus"`
-	Errors        []string  `json:"Errors"`
-	ReservationID string    `json:"ReservationID"`
+	BookingStatus string   `json:"BookingStatus"`
+	Errors        []string `json:"Errors"`
+	ReservationID string   `json:"ReservationID"`
 }
 
 type GeoLocation struct {
@@ -217,7 +217,7 @@ type Seat struct {
 }
 
 type QuoteResponse struct {
-	UUID          string         `json:"uuid"`
+	UUID          string        `json:"uuid"`
 	QuoteStatus   int           `json:"quoteStatus"`
 	StatusDetails []interface{} `json:"statusDetails"`
 	GrandTotal    Money         `json:"grandTotal"`
@@ -233,7 +233,7 @@ type Money struct {
 	CreditRatio float64 `json:"creditRatio,omitempty"`
 }
 
-type LineItem struct {}
+type LineItem struct{}
 
 type AppBootstrapRequest struct {
 	IsCAKube         bool   `json:"isCAKube"`
@@ -428,30 +428,30 @@ type LocationFeaturesResponse struct {
 }
 
 type LocationFeatures struct {
-	UUID                 string             `json:"uuid"`
-	Name                 string             `json:"name"`
-	Description          string             `json:"description"`
-	SupportEmail         string             `json:"supportEmail"`
-	Phone                string             `json:"phone"`
-	PhoneNormalized      string             `json:"phoneNormalized"`
-	Currency             string             `json:"currency"`
-	TimeZone             string             `json:"timeZone"`
-	Latitude             float64            `json:"latitude"`
-	Longitude            float64            `json:"longitude"`
-	Address              Address            `json:"address"`
-	EntranceAddress      Address            `json:"entranceAddress"`
-	PrimaryTeamMember    TeamMember         `json:"primaryTeamMember"`
-	Images               []LocationImage    `json:"images"`
-	Amenities            []Amenity          `json:"amenities"`
-	Details              LocationDetails    `json:"details"`
-	TransitInfo          TransitInfo        `json:"transitInfo"`
-	MemberEntranceInstructions string       `json:"memberEntranceInstructions"`
-	TourInstructions     string             `json:"tourInstructions"`
-	ParkingInstructions  string             `json:"parkingInstructions"`
-	CommunityBarFloor    CommunityBarFloor  `json:"communityBarFloor"`
-	BrandName            string             `json:"brandName"`
-	HasThirdPartyDisplay bool               `json:"hasThirdPartyDisplay"`
-	IsMigrated           bool               `json:"isMigrated"`
+	UUID                       string            `json:"uuid"`
+	Name                       string            `json:"name"`
+	Description                string            `json:"description"`
+	SupportEmail               string            `json:"supportEmail"`
+	Phone                      string            `json:"phone"`
+	PhoneNormalized            string            `json:"phoneNormalized"`
+	Currency                   string            `json:"currency"`
+	TimeZone                   string            `json:"timeZone"`
+	Latitude                   float64           `json:"latitude"`
+	Longitude                  float64           `json:"longitude"`
+	Address                    Address           `json:"address"`
+	EntranceAddress            Address           `json:"entranceAddress"`
+	PrimaryTeamMember          TeamMember        `json:"primaryTeamMember"`
+	Images                     []LocationImage   `json:"images"`
+	Amenities                  []Amenity         `json:"amenities"`
+	Details                    LocationDetails   `json:"details"`
+	TransitInfo                TransitInfo       `json:"transitInfo"`
+	MemberEntranceInstructions string            `json:"memberEntranceInstructions"`
+	TourInstructions           string            `json:"tourInstructions"`
+	ParkingInstructions        string            `json:"parkingInstructions"`
+	CommunityBarFloor          CommunityBarFloor `json:"communityBarFloor"`
+	BrandName                  string            `json:"brandName"`
+	HasThirdPartyDisplay       bool              `json:"hasThirdPartyDisplay"`
+	IsMigrated                 bool              `json:"isMigrated"`
 }
 
 type LocationImage struct {

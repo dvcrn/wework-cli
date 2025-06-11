@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -28,18 +29,30 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 			var availableLocations []string
 			var targetLocationUUID = locationUUID
 
+			// Search for location if needed
 			if city != "" && locationUUID == "" {
-				res, err := ww.GetLocationsByGeo(city)
+				// Use spinner for location search
+				result, err := spinner.RunWithSpinner(fmt.Sprintf("Searching for locations in %s", city), func() (interface{}, error) {
+					res, err := ww.GetLocationsByGeo(city)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get locations: %v", err)
+					}
+
+					var foundUUID string
+					for _, location := range res.LocationsByGeo {
+						availableLocations = append(availableLocations, location.Name)
+						if name == location.Name {
+							foundUUID = location.UUID
+						}
+					}
+					return foundUUID, nil
+				})
+
 				if err != nil {
-					return fmt.Errorf("failed to get locations: %v", err)
+					return err
 				}
 
-				for _, location := range res.LocationsByGeo {
-					availableLocations = append(availableLocations, location.Name)
-					if name == location.Name {
-						targetLocationUUID = location.UUID
-					}
-				}
+				targetLocationUUID = result.(string)
 			}
 
 			if targetLocationUUID == "" {
@@ -99,48 +112,58 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 
 			// Book for each date
 			for _, bookingDate := range dates {
-				fmt.Printf("Checking availability for %s\n", bookingDate)
-				spaces, err := ww.GetAvailableSpaces(bookingDate, []string{targetLocationUUID})
-				if err != nil {
-					fmt.Printf("Error getting spaces for %s: %v\n", bookingDate, err)
-					continue
-				}
-
-				if len(spaces.Response.Workspaces) == 0 {
-					fmt.Printf("No spaces found for %s\n", bookingDate)
-					continue
-				}
-
-				if len(spaces.Response.Workspaces) > 1 {
-					fmt.Println("Found multiple spaces:")
-					for _, space := range spaces.Response.Workspaces {
-						fmt.Printf("Location: %s\n", space.Location.Name)
-						fmt.Printf("Reservable ID: %s\n", space.UUID)
-						fmt.Printf("Location ID: %s\n", space.Location.UUID)
-						fmt.Printf("Available: %d\n", space.Seat.Available)
-						fmt.Println("---")
+				// Use continuous spinner for the booking process
+				err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+					// Check availability
+					cs.Update(fmt.Sprintf("Checking availability for %s", bookingDate.Format("2006-01-02")))
+					spaces, err := ww.GetAvailableSpaces(bookingDate, []string{targetLocationUUID})
+					if err != nil {
+						return fmt.Errorf("error getting spaces for %s: %v", bookingDate, err)
 					}
-					return fmt.Errorf("please specify a specific space to book")
-				}
 
-				space := spaces.Response.Workspaces[0]
-				fmt.Printf("Attempting to book: %s for %s\n", space.Location.Name, bookingDate)
-
-				bookRes, err := ww.PostBooking(bookingDate, &space)
-				if err != nil {
-					fmt.Printf("Booking failed: %v\n", err)
-					continue
-				}
-
-				if bookRes.BookingStatus != "BookingSuccess" {
-					fmt.Printf("Booking failed: %s\n", bookRes.BookingStatus)
-					for _, err := range bookRes.Errors {
-						fmt.Printf("  %s\n", err)
+					if len(spaces.Response.Workspaces) == 0 {
+						return fmt.Errorf("no spaces found for %s", bookingDate)
 					}
+
+					if len(spaces.Response.Workspaces) > 1 {
+						// Need to stop spinner to show multiple options
+						cs.Success("Found multiple spaces")
+						fmt.Println("\nFound multiple spaces:")
+						for _, space := range spaces.Response.Workspaces {
+							fmt.Printf("Location: %s\n", space.Location.Name)
+							fmt.Printf("Reservable ID: %s\n", space.UUID)
+							fmt.Printf("Location ID: %s\n", space.Location.UUID)
+							fmt.Printf("Available: %d\n", space.Seat.Available)
+							fmt.Println("---")
+						}
+						return fmt.Errorf("please specify a specific space to book")
+					}
+
+					space := spaces.Response.Workspaces[0]
+
+					// Submit booking
+					cs.Update(fmt.Sprintf("Submitting booking for %s on %s", space.Location.Name, bookingDate.Format("2006-01-02")))
+					bookRes, err := ww.PostBooking(bookingDate, &space)
+					if err != nil {
+						return fmt.Errorf("booking failed: %v", err)
+					}
+
+					if bookRes.BookingStatus != "BookingSuccess" {
+						errMsg := fmt.Sprintf("booking failed: %s", bookRes.BookingStatus)
+						for _, err := range bookRes.Errors {
+							errMsg += fmt.Sprintf("\n  %s", err)
+						}
+						return fmt.Errorf(errMsg)
+					}
+
+					cs.Success(fmt.Sprintf("Booking successful! Reservation ID: %s", bookRes.ReservationID))
+					return nil
+				})
+
+				if err != nil {
+					fmt.Printf("❌ %v\n", err)
 					continue
 				}
-
-				fmt.Printf("Booking successful! Reservation ID: %s\n", bookRes.ReservationID)
 			}
 
 			return nil

@@ -77,7 +77,7 @@ func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 			fmt.Printf("Address: %s, %s, %s\n", location.Address.Line1, location.Address.City, location.Address.Country)
 			fmt.Printf("Support Email: %s\n", location.SupportEmail)
 			fmt.Printf("Phone: %s\n", location.Phone)
-			
+
 			fmt.Println("\nOperating Hours:")
 			for _, hours := range location.Details.OperatingHours {
 				if hours.TimeOpen != "" {

@@ -326,19 +326,19 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 
 	dateInTz := date.In(loc)
 	// Parse open and close times (e.g., "08:30" and "20:00")
-	openHour, openMin := 8, 30  // Default values
+	openHour, openMin := 8, 30 // Default values
 	if len(space.OpenTime) >= 5 {
 		fmt.Sscanf(space.OpenTime, "%d:%d", &openHour, &openMin)
 	}
-	closeHour, closeMin := 20, 0  // Default values
+	closeHour, closeMin := 20, 0 // Default values
 	if len(space.CloseTime) >= 5 {
 		fmt.Sscanf(space.CloseTime, "%d:%d", &closeHour, &closeMin)
 	}
-	
+
 	// Create start and end times in local timezone
 	startLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
 	endLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
-	
+
 	// Convert to UTC
 	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
 	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
@@ -348,7 +348,7 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 		"SpaceType":            4,
 		"ReservationID":        "",
 		"TriggerCalendarEvent": true,
-		"Notes": nil,
+		"Notes":                nil,
 		"MailData": map[string]interface{}{
 			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
 			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
@@ -398,19 +398,19 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 
 	dateInTz := date.In(loc)
 	// Parse open and close times (e.g., "08:30" and "20:00")
-	openHour, openMin := 8, 30  // Default values
+	openHour, openMin := 8, 30 // Default values
 	if len(space.OpenTime) >= 5 {
 		fmt.Sscanf(space.OpenTime, "%d:%d", &openHour, &openMin)
 	}
-	closeHour, closeMin := 20, 0  // Default values
+	closeHour, closeMin := 20, 0 // Default values
 	if len(space.CloseTime) >= 5 {
 		fmt.Sscanf(space.CloseTime, "%d:%d", &closeHour, &closeMin)
 	}
-	
+
 	// Create start and end times in local timezone
 	startLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
 	endLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
-	
+
 	// Convert to UTC
 	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
 	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
@@ -434,7 +434,7 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		"SpaceType":            4,
 		"ReservationID":        "",
 		"TriggerCalendarEvent": true,
-		"Notes": nil,
+		"Notes":                nil,
 		"MailData": map[string]interface{}{
 			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
 			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),

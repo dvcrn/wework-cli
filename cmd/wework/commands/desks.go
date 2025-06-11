@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -23,29 +24,47 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 			if locationUUID == "" && city == "" {
 				return fmt.Errorf("--location-uuid or --city is required for desks lookup")
 			}
+
 			var locationUUIDs []string
 			if city != "" {
-				res, err := ww.GetLocationsByGeo(city)
+				// Use spinner for location search
+				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting locations in %s", city), func() (interface{}, error) {
+					res, err := ww.GetLocationsByGeo(city)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get locations: %v", err)
+					}
+					var uuids []string
+					for _, location := range res.LocationsByGeo {
+						uuids = append(uuids, location.UUID)
+					}
+					return uuids, nil
+				})
 				if err != nil {
-					return fmt.Errorf("failed to get locations: %v", err)
+					return err
 				}
-				for _, location := range res.LocationsByGeo {
-					locationUUIDs = append(locationUUIDs, location.UUID)
-				}
+				locationUUIDs = result.([]string)
 			} else {
 				locationUUIDs = strings.Split(locationUUID, ",")
 			}
+
 			dateParsed, err := time.Parse("2006-01-02", date)
 			if err != nil {
 				return fmt.Errorf("invalid date format: %v", err)
 			}
-			response, err := ww.GetAvailableSpaces(dateParsed, locationUUIDs)
+
+			// Get available spaces with spinner
+			result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting available desks for %s", dateParsed.Format("2006-01-02")), func() (interface{}, error) {
+				return ww.GetAvailableSpaces(dateParsed, locationUUIDs)
+			})
 			if err != nil {
 				return fmt.Errorf("failed to get available spaces: %v", err)
 			}
+			response := result.(*wework.SharedWorkspaceResponse)
+
 			if len(response.Response.Workspaces) == 0 {
 				return fmt.Errorf("no spaces found, or not available for the given date")
 			}
+
 			fmt.Printf("%-30s%-40s%-40s%s\n", "Location", "Reservable ID", "Location ID", "Available")
 			fmt.Println(strings.Repeat("-", 120))
 			for _, space := range response.Response.Workspaces {

@@ -2,8 +2,9 @@ package wework
 
 import (
 	"fmt"
-	ics "github.com/arran4/golang-ical"
 	"os"
+
+	ics "github.com/arran4/golang-ical"
 )
 
 type WeWorkCalendar struct {

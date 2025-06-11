@@ -121,3 +121,4 @@ bookingData["CreditRatio"] = quote.GrandTotal.CreditRatio
 - Check `pkg/wework/types.go` for API response structures
 - Browser DevTools can help understand WeWork API endpoints
 - The auth flow mimics browser behavior for compatibility
+- Always run `just format` in between steps. This will re-format the entire codebase and fix imports (remove unused imports, adds new imports)
