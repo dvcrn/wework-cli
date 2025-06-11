@@ -77,6 +77,38 @@ Parse dates using the existing pattern in `book.go` command.
 - Use `time.LoadLocation()` with location timezone from API
 - Calendar generation includes proper timezone data
 
+## Booking API Details
+
+The booking system requires a two-step process with specific field mappings and headers:
+
+### Two-Step Booking Process
+1. **Get Quote** (`/common-booking/quote`): Validates availability and returns pricing
+2. **Create Booking** (`/common-booking/`): Confirms the reservation
+
+### Required Headers
+- `Request-Source`: Must use iOS app format: `com.wework.ondemand/WorkplaceOne/Prod/iOS/2.70.1(18.5)`
+- `WeWorkMemberType`: "2"
+- `Authorization`: Bearer token from OAuth2
+- `WeWorkUUID`: User UUID extracted from JWT
+
+### Critical Field Mappings
+- `SpaceID`: Must use `space.InventoryUUID` (NOT `space.UUID`)
+- `WeWorkSpaceID`: Uses `space.UUID`
+- `LocationType`: Must be `4` for desk bookings
+- `ApplicationType`: "WorkplaceOne"
+- `PlatformType`: "iOS_APP"
+
+### Time Handling
+- Times must be in UTC format with Z suffix (e.g., "2025-06-09T23:30:00Z")
+- Convert local booking times to UTC using location timezone
+- Example: 08:30 Tokyo time → 2025-06-09T23:30:00Z
+
+### Quote Response Integration
+The quote response provides `CreditRatio` which must be passed to the booking request:
+```go
+bookingData["CreditRatio"] = quote.GrandTotal.CreditRatio
+```
+
 ## Known Issues and Workarounds
 
 - User coordinates are hardcoded in `GetAvailableSpaces` (lat: 35.68, lng: 139.69)
