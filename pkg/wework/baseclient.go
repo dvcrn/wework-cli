@@ -45,7 +45,7 @@ func NewBaseClient() (*BaseClient, error) {
 		headers: http.Header{
 			"Accept":           []string{"application/json, text/plain, */*"},
 			"Content-Type":     []string{"application/json"},
-			"Request-Source":   []string{"MemberWeb/WorkplaceOne/Prod"},
+			"Request-Source":   []string{"com.wework.ondemand/WorkplaceOne/Prod/iOS/2.70.1(18.5)"},
 			"WeWorkMemberType": []string{"2"},
 			"Host":             []string{"members.wework.com"},
 			"Origin":           []string{"https://members.wework.com"},

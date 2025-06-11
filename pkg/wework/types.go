@@ -228,8 +228,9 @@ type QuoteResponse struct {
 }
 
 type Money struct {
-	Currency string  `json:"currency"`
-	Amount   float64 `json:"amount"`
+	Currency    string  `json:"currency"`
+	Amount      float64 `json:"amount"`
+	CreditRatio float64 `json:"creditRatio,omitempty"`
 }
 
 type LineItem struct {}

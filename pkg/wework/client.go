@@ -325,28 +325,37 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 	}
 
 	dateInTz := date.In(loc)
-	startTime := dateInTz.Format("2006-01-02") + "T00:00:00" + dateInTz.Format("-07:00")
-	endTime := dateInTz.Format("2006-01-02") + "T23:59:59" + dateInTz.Format("-07:00")
+	// Parse open and close times (e.g., "08:30" and "20:00")
+	openHour, openMin := 8, 30  // Default values
+	if len(space.OpenTime) >= 5 {
+		fmt.Sscanf(space.OpenTime, "%d:%d", &openHour, &openMin)
+	}
+	closeHour, closeMin := 20, 0  // Default values
+	if len(space.CloseTime) >= 5 {
+		fmt.Sscanf(space.CloseTime, "%d:%d", &closeHour, &closeMin)
+	}
+	
+	// Create start and end times in local timezone
+	startLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
+	endLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
+	
+	// Convert to UTC
+	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
+	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
 
 	quoteURL := "https://members.wework.com/workplaceone/api/common-booking/quote"
 	quoteData := map[string]interface{}{
 		"SpaceType":            4,
 		"ReservationID":        "",
 		"TriggerCalendarEvent": true,
-		"Notes": map[string]interface{}{
-			"locationAddress": space.Location.Address.Line1,
-			"locationCity":    space.Location.Address.City,
-			"locationState":   space.Location.Address.State,
-			"locationCountry": space.Location.Address.Country,
-			"locationName":    space.Location.Name,
-		},
+		"Notes": nil,
 		"MailData": map[string]interface{}{
-			"dayFormatted":       dateInTz.Format("Monday, January 2"),
+			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
 			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
 			"endTimeFormatted":   fmt.Sprintf("%s PM", space.CloseTime),
 			"floorAddress":       "",
 			"locationAddress":    space.Location.Address.Line1,
-			"creditsUsed":        "0",
+			"creditsUsed":        "2",
 			"Capacity":           "1",
 			"TimezoneUsed":       fmt.Sprintf("GMT %s", space.Location.TimezoneOffset),
 			"TimezoneIana":       space.Location.TimeZone,
@@ -357,11 +366,11 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  0,
+		"LocationType":  4,
 		"UTCOffset":     space.Location.TimezoneOffset,
 		"Currency":      "com.wework.credits",
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       space.UUID,
+		"SpaceID":       space.InventoryUUID,
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,
@@ -388,16 +397,34 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 	}
 
 	dateInTz := date.In(loc)
-	startTime := dateInTz.Format("2006-01-02") + "T00:00:00" + dateInTz.Format("-07:00")
-	endTime := dateInTz.Format("2006-01-02") + "T23:59:59" + dateInTz.Format("-07:00")
+	// Parse open and close times (e.g., "08:30" and "20:00")
+	openHour, openMin := 8, 30  // Default values
+	if len(space.OpenTime) >= 5 {
+		fmt.Sscanf(space.OpenTime, "%d:%d", &openHour, &openMin)
+	}
+	closeHour, closeMin := 20, 0  // Default values
+	if len(space.CloseTime) >= 5 {
+		fmt.Sscanf(space.CloseTime, "%d:%d", &closeHour, &closeMin)
+	}
+	
+	// Create start and end times in local timezone
+	startLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
+	endLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
+	
+	// Convert to UTC
+	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
+	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
 
 	if daysUntilBooking := time.Until(dateInTz); daysUntilBooking > 30*24*time.Hour {
 		fmt.Println("!! Booking too far in the future, will try to book anyway, make sure you check the booking is correct !!")
 		daysOver := int(daysUntilBooking/(24*time.Hour) - 30)
 		adjustedDate := dateInTz.AddDate(0, 0, -(daysOver + 1))
 
-		startTime = adjustedDate.Format("2006-01-02") + "T00:00:00" + dateInTz.Format("-07:00")
-		endTime = adjustedDate.Format("2006-01-02") + "T23:59:59" + dateInTz.Format("-07:00")
+		// Recalculate times with adjusted date
+		startLocal = time.Date(adjustedDate.Year(), adjustedDate.Month(), adjustedDate.Day(), openHour, openMin, 0, 0, loc)
+		endLocal = time.Date(adjustedDate.Year(), adjustedDate.Month(), adjustedDate.Day(), closeHour, closeMin, 0, 0, loc)
+		startTime = startLocal.UTC().Format("2006-01-02T15:04:05Z")
+		endTime = endLocal.UTC().Format("2006-01-02T15:04:05Z")
 	}
 
 	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
@@ -407,16 +434,9 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		"SpaceType":            4,
 		"ReservationID":        "",
 		"TriggerCalendarEvent": true,
-		"Notes": map[string]interface{}{
-			"spaceName":       space.Location.Name,
-			"locationAddress": space.Location.Address.Line1,
-			"locationCity":    space.Location.Address.City,
-			"locationState":   space.Location.Address.State,
-			"locationCountry": space.Location.Address.Country,
-			"locationName":    space.Location.Address.Line1,
-		},
+		"Notes": nil,
 		"MailData": map[string]interface{}{
-			"dayFormatted":       dateInTz.Format("Monday, January 2"),
+			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
 			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
 			"endTimeFormatted":   fmt.Sprintf("%s PM", space.CloseTime),
 			"floorAddress":       "",
@@ -427,15 +447,16 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 			"TimezoneIana":       space.Location.TimeZone,
 			"startDateTime":      fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
 			"endDateTime":        fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
-			"locationName":       space.Location.Address.Line1,
+			"locationName":       space.Location.Name,
 			"locationCity":       space.Location.Address.City,
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  0,
+		"LocationType":  4,
 		"UTCOffset":     space.Location.TimezoneOffset,
+		"CreditRatio":   quote.GrandTotal.CreditRatio,
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       space.UUID,
+		"SpaceID":       space.InventoryUUID,
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,
