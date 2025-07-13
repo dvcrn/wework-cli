@@ -2,11 +2,13 @@ package spinner
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 // SpinnerModel represents the loading spinner model
@@ -69,6 +71,22 @@ type updateMsg struct {
 
 // RunWithSpinner executes a function while showing a spinner
 func RunWithSpinner(message string, fn func() (interface{}, error)) (interface{}, error) {
+	// Check if spinner should be disabled
+	isTerminal := term.IsTerminal(int(os.Stdout.Fd()))
+	noSpinner := os.Getenv("WEWORK_NO_SPINNER") == "true" || os.Getenv("NO_SPINNER") == "true"
+	
+	if !isTerminal || noSpinner {
+		// No spinner, just run the function and print status
+		fmt.Println(message)
+		result, err := fn()
+		if err != nil {
+			fmt.Printf("✗ %s failed\n", message)
+		} else {
+			fmt.Printf("✓ %s complete\n", message)
+		}
+		return result, err
+	}
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))

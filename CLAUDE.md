@@ -92,9 +92,9 @@ The booking system requires a two-step process with specific field mappings and 
 - `WeWorkUUID`: User UUID extracted from JWT
 
 ### Critical Field Mappings
-- `SpaceID`: Must use `space.InventoryUUID` (NOT `space.UUID`)
+- `SpaceID`: Must use `space.Reservable.KubeId` (a numeric string like "131834")
 - `WeWorkSpaceID`: Uses `space.UUID`
-- `LocationType`: Must be `4` for desk bookings
+- `LocationType`: Must be `2` for desk bookings
 - `ApplicationType`: "WorkplaceOne"
 - `PlatformType`: "iOS_APP"
 

@@ -2,19 +2,23 @@ package spinner
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
 )
 
 // ContinuousSpinner maintains a single spinner throughout multiple operations
 type ContinuousSpinner struct {
-	program  *tea.Program
-	mu       sync.Mutex
-	finished bool
-	messages chan interface{}
+	program    *tea.Program
+	mu         sync.Mutex
+	finished   bool
+	messages   chan interface{}
+	isTerminal bool
+	noSpinner  bool
 }
 
 type continuousModel struct {
@@ -63,12 +67,24 @@ func (m continuousModel) View() string {
 // NewContinuousSpinner creates a spinner that stays active across multiple operations
 func NewContinuousSpinner() *ContinuousSpinner {
 	return &ContinuousSpinner{
-		messages: make(chan interface{}, 100),
+		messages:   make(chan interface{}, 100),
+		isTerminal: term.IsTerminal(int(os.Stdout.Fd())),
+		noSpinner:  os.Getenv("WEWORK_NO_SPINNER") == "true" || os.Getenv("NO_SPINNER") == "true",
 	}
+}
+
+// SetNoSpinner disables the spinner even if running in a terminal
+func (cs *ContinuousSpinner) SetNoSpinner(noSpinner bool) {
+	cs.noSpinner = noSpinner
 }
 
 // Start begins the continuous spinner
 func (cs *ContinuousSpinner) Start(initialMessage string) {
+	if !cs.isTerminal || cs.noSpinner {
+		fmt.Println(initialMessage)
+		return
+	}
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -87,6 +103,11 @@ func (cs *ContinuousSpinner) Start(initialMessage string) {
 
 // Update changes the spinner message without stopping it
 func (cs *ContinuousSpinner) Update(message string) {
+	if !cs.isTerminal || cs.noSpinner {
+		fmt.Println(message)
+		return
+	}
+
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -97,6 +118,11 @@ func (cs *ContinuousSpinner) Update(message string) {
 
 // Success stops the spinner with a success message
 func (cs *ContinuousSpinner) Success(message string) {
+	if !cs.isTerminal || cs.noSpinner {
+		fmt.Printf("✓ %s\n", message)
+		return
+	}
+
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -109,6 +135,11 @@ func (cs *ContinuousSpinner) Success(message string) {
 
 // Error stops the spinner with an error message
 func (cs *ContinuousSpinner) Error(message string) {
+	if !cs.isTerminal || cs.noSpinner {
+		fmt.Printf("✗ %s\n", message)
+		return
+	}
+
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
 
@@ -122,6 +153,21 @@ func (cs *ContinuousSpinner) Error(message string) {
 // WithContinuousSpinner runs a series of operations with a continuous spinner
 func WithContinuousSpinner(operations func(*ContinuousSpinner) error) error {
 	cs := NewContinuousSpinner()
+	cs.Start("Initializing...")
+
+	err := operations(cs)
+
+	if err != nil {
+		cs.Error(err.Error())
+	}
+
+	return err
+}
+
+// WithContinuousSpinnerConfig runs operations with optional spinner disabling
+func WithContinuousSpinnerConfig(noSpinner bool, operations func(*ContinuousSpinner) error) error {
+	cs := NewContinuousSpinner()
+	cs.SetNoSpinner(noSpinner)
 	cs.Start("Initializing...")
 
 	err := operations(cs)

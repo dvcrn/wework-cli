@@ -132,7 +132,15 @@ type Workspace struct {
 	IsVASTCoworking      bool              `json:"isVASTCoworking"`
 	IsAffiliateCoworking bool              `json:"isAffiliateCoworking"`
 	IsFranchiseCoworking bool              `json:"isFranchiseCoworking"`
-	IsHybridSpace        bool              `json:"isHybridSpace"`
+	IsHybridSpace        bool                 `json:"isHybridSpace"`
+	Reservable           *WorkspaceReservable `json:"reservable"`
+}
+
+type WorkspaceReservable struct {
+	Capacity      int    `json:"capacity"`
+	KubeId        string `json:"KubeId"`
+	CwmSpaceId    int    `json:"cwmSpaceId"`
+	CwmSpaceCount int    `json:"cwmSpaceCount"`
 }
 
 type Location struct {

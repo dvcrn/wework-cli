@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -95,9 +96,9 @@ func (w *WeWork) doRequest(method, url string, data interface{}) (*http.Response
 			} `json:"responseStatus"`
 		}
 
-		// buf := new(bytes.Buffer)
-		// buf.ReadFrom(resp.Body)
-		// resp.Body = io.NopCloser(buf)
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		resp.Body = io.NopCloser(buf)
 
 		if err := json.NewDecoder(resp.Body).Decode(&errorResp); err == nil {
 			if errorResp.ResponseStatus.Type == "error" {
@@ -344,6 +345,15 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
 
 	quoteURL := "https://members.wework.com/workplaceone/api/common-booking/quote"
+	// Get SpaceID from Reservable.KubeId if available
+	spaceID := ""
+	if space.Reservable != nil && space.Reservable.KubeId != "" {
+		spaceID = space.Reservable.KubeId
+	} else {
+		// Fallback to InventoryUUID for backward compatibility
+		spaceID = space.InventoryUUID
+	}
+
 	quoteData := map[string]interface{}{
 		"SpaceType":            4,
 		"ReservationID":        "",
@@ -366,11 +376,11 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  4,
+		"LocationType":  2,
 		"UTCOffset":     space.Location.TimezoneOffset,
 		"Currency":      "com.wework.credits",
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       space.InventoryUUID,
+		"SpaceID":       spaceID,
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,
@@ -427,6 +437,15 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		endTime = endLocal.UTC().Format("2006-01-02T15:04:05Z")
 	}
 
+	// Get SpaceID from Reservable.KubeId if available
+	spaceID := ""
+	if space.Reservable != nil && space.Reservable.KubeId != "" {
+		spaceID = space.Reservable.KubeId
+	} else {
+		// Fallback to InventoryUUID for backward compatibility
+		spaceID = space.InventoryUUID
+	}
+
 	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
 	bookingData := map[string]interface{}{
 		"ApplicationType":      "WorkplaceOne",
@@ -452,11 +471,11 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  4,
+		"LocationType":  2,
 		"UTCOffset":     space.Location.TimezoneOffset,
 		"CreditRatio":   quote.GrandTotal.CreditRatio,
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       space.InventoryUUID,
+		"SpaceID":       spaceID,
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,
