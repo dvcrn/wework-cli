@@ -144,28 +144,30 @@ type WorkspaceReservable struct {
 }
 
 type Location struct {
-	Description                string      `json:"description"`
-	SupportEmail               string      `json:"supportEmail"`
-	PhoneNormalized            string      `json:"phoneNormalized"`
-	Currency                   string      `json:"currency"`
-	PrimaryTeamMember          TeamMember  `json:"primaryTeamMember"`
-	Amenities                  []Amenity   `json:"amenities"`
-	Details                    Details     `json:"details"`
-	TransitInfo                TransitInfo `json:"transitInfo"`
-	MemberEntranceInstructions string      `json:"memberEntranceInstructions"`
-	ParkingInstructions        string      `json:"parkingInstructions"`
-	TimezoneOffset             string      `json:"timezoneOffset"`
-	TimeZoneIdentifier         string      `json:"timeZoneIdentifier"`
-	TimeZoneWinID              string      `json:"timeZoneWinId"`
-	UUID                       string      `json:"uuid"`
-	Name                       string      `json:"name"`
-	Latitude                   float64     `json:"latitude"`
-	Longitude                  float64     `json:"longitude"`
-	Address                    Address     `json:"address"`
-	TimeZone                   string      `json:"timeZone"`
-	Distance                   float64     `json:"distance"`
-	HasThirdPartyDisplay       bool        `json:"hasThirdPartyDisplay"`
-	IsMigrated                 bool        `json:"isMigrated"`
+	Description                string            `json:"description"`
+	SupportEmail               string            `json:"supportEmail"`
+	PhoneNormalized            string            `json:"phoneNormalized"`
+	Currency                   string            `json:"currency"`
+	PrimaryTeamMember          TeamMember        `json:"primaryTeamMember"`
+	Amenities                  []Amenity         `json:"amenities"`
+	Details                    Details           `json:"details"`
+	TransitInfo                TransitInfo       `json:"transitInfo"`
+	MemberEntranceInstructions string            `json:"memberEntranceInstructions"`
+	ParkingInstructions        string            `json:"parkingInstructions"`
+	CommunityBarFloor          *CommunityBarFloor `json:"communityBarFloor,omitempty"`
+	TimezoneOffset             string            `json:"timezoneOffset"`
+	TimeZoneIdentifier         string            `json:"timeZoneIdentifier"`
+	TimeZoneWinID              string            `json:"timeZoneWinId"`
+	UUID                       string            `json:"uuid"`
+	Name                       string            `json:"name"`
+	Latitude                   float64           `json:"latitude"`
+	Longitude                  float64           `json:"longitude"`
+	Address                    Address           `json:"address"`
+	TimeZone                   string            `json:"timeZone"`
+	Distance                   float64           `json:"distance"`
+	HasThirdPartyDisplay       bool              `json:"hasThirdPartyDisplay"`
+	IsMigrated                 bool              `json:"isMigrated"`
+	Images                     []LocationImage   `json:"images,omitempty"`
 }
 
 type TeamMember struct {
