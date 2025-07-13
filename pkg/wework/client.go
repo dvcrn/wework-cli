@@ -221,23 +221,34 @@ func (w *WeWork) adjustBookingTimezone(booking *Booking) {
 }
 
 func (w *WeWork) GetPastBookings() ([]*Booking, error) {
-	url := "https://members.wework.com/workplaceone/api/ext-booking/get-wework-past-booking-data"
+	// Default to past 30 days
+	endDate := time.Now()
+	startDate := endDate.AddDate(0, 0, -30)
+	return w.GetPastBookingsWithDates(startDate, endDate)
+}
+
+func (w *WeWork) GetPastBookingsWithDates(startDate, endDate time.Time) ([]*Booking, error) {
+	params := url.Values{}
+	params.Add("startDate", startDate.UTC().Format(time.RFC3339))
+	params.Add("endDate", endDate.UTC().Format(time.RFC3339))
+	
+	url := "https://members.wework.com/workplaceone/api/common-booking/past-bookings?" + params.Encode()
 	resp, err := w.doRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	var result []*Booking
+	var result UpcomingBookingsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
-	for _, booking := range result {
+	for _, booking := range result.Bookings {
 		w.adjustBookingTimezone(booking)
 	}
 
-	return result, nil
+	return result.Bookings, nil
 }
 
 func (w *WeWork) GetBootstrap() (*AppBootstrapResponse, error) {
