@@ -531,3 +531,42 @@ func (w *WeWork) GetLocationFeatures(locationUUID string, amenitiesOnly bool) (*
 
 	return &result, nil
 }
+
+// GetSpacesByUUIDs retrieves workspace information for specific location UUIDs
+func (w *WeWork) GetSpacesByUUIDs(locationUUIDs []string) (*SharedWorkspaceResponse, error) {
+	params := url.Values{}
+	params.Add("locationUUIDs", strings.Join(locationUUIDs, ","))
+	params.Add("closestCity", "")
+	params.Add("userLatitude", "0")
+	params.Add("userLongitude", "0")
+	params.Add("boundnwLat", "")
+	params.Add("boundnwLng", "")
+	params.Add("boundseLat", "")
+	params.Add("boundseLng", "")
+	params.Add("type", "0")
+	params.Add("offset", "0")
+	params.Add("limit", "500")
+	params.Add("roomTypeFilter", "")
+	params.Add("date", time.Now().Format("01/02/2006")) // MM/DD/YYYY format - uses current date
+	params.Add("duration", "0")
+	params.Add("locationOffset", "+00:00")
+	params.Add("isWeb", "false")
+	params.Add("capacity", "0")
+	params.Add("endDate", "")
+	params.Add("locationType", "0")
+	params.Add("isFromWp", "false")
+
+	url := "https://members.wework.com/workplaceone/api/spaces/get-spaces?" + params.Encode()
+	resp, err := w.doRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result SharedWorkspaceResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &result, nil
+}
