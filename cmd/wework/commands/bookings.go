@@ -79,8 +79,8 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 			fmt.Printf("%-20s%-25s%-30s%-40s%s\n", "Date", "Time", "Location", "Address", "Credits Used")
 			fmt.Println(strings.Repeat("-", 145))
 			for _, booking := range bookings {
-				localStartsAt := booking.StartsAt
-				localEndsAt := booking.EndsAt
+				localStartsAt := booking.StartsAt.Time
+				localEndsAt := booking.EndsAt.Time
 				timeRange := fmt.Sprintf("%s ~ %s",
 					localStartsAt.Format("15:04"),
 					localEndsAt.Format("15:04 (MST)"))

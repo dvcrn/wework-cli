@@ -211,13 +211,16 @@ func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
 }
 
 func (w *WeWork) adjustBookingTimezone(booking *Booking) {
+	if booking.Reservable == nil || booking.Reservable.Location == nil {
+		return
+	}
 	loc, err := time.LoadLocation(booking.Reservable.Location.TimeZone)
 	if err != nil {
 		return
 	}
 
-	booking.StartsAt = booking.StartsAt.In(loc)
-	booking.EndsAt = booking.EndsAt.In(loc)
+	booking.StartsAt.Time = booking.StartsAt.Time.In(loc)
+	booking.EndsAt.Time = booking.EndsAt.Time.In(loc)
 }
 
 func (w *WeWork) GetPastBookings() ([]*Booking, error) {

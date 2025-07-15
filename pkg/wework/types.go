@@ -1,8 +1,24 @@
 package wework
 
 import (
+	"strings"
 	"time"
 )
+
+// CustomTime is a wrapper around time.Time to handle custom date formats
+ type CustomTime struct {
+	 time.Time
+ }
+
+ func (ct *CustomTime) UnmarshalJSON(b []byte) (err error) {
+	 s := strings.Trim(string(b), `"`)
+	 if s == "null" || s == "" || s == "0001-01-01T00:00:00Z" || s == "01/01/0001 00:00:00" {
+		 ct.Time = time.Time{}
+		 return
+	 }
+	 ct.Time, err = time.Parse(time.RFC3339, s)
+	 return
+ }
 
 type SharedWorkspaceResponse struct {
 	Limit    int `json:"limit"`
@@ -42,14 +58,14 @@ type UpcomingBookingsResponse struct {
 
 type Booking struct {
 	UUID                         string           `json:"uuid"`
-	StartsAt                     time.Time        `json:"startsAt"`
-	EndsAt                       time.Time        `json:"endsAt"`
+	StartsAt                     CustomTime        `json:"startsAt"`
+	EndsAt                       CustomTime        `json:"endsAt"`
 	TimeZone                     string           `json:"timezone"`
 	CreditOrder                  *CreditOrder     `json:"creditOrder"`
 	Reservable                   *SharedWorkspace `json:"reservable"`
 	IsAttendee                   bool             `json:"isAttendee"`
-	ModificationDeadline         time.Time        `json:"modificationDeadline"`
-	Order                        Order            `json:"order"`
+ 	ModificationDeadline         CustomTime       `json:"modificationDeadline"`
+ 	Order                        Order            `json:"order"`
 	IsMultidayBooking            bool             `json:"isMultidayBooking"`
 	KubeSameDayCancelPolicy      bool             `json:"kubeSameDayCancelPolicy"`
 	IsFromKube                   bool             `json:"isFromKube"`
