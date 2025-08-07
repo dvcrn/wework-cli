@@ -16,6 +16,12 @@ type WeWork struct {
 	client *BaseClient
 }
 
+// QuoteParameters holds the dynamically determined parameters for a booking quote.
+type QuoteParameters struct {
+	LocationType int
+	SpaceID      string
+}
+
 func NewWeWork(token string) *WeWork {
 	client, err := NewBaseClient()
 	if err != nil {
@@ -234,7 +240,7 @@ func (w *WeWork) GetPastBookingsWithDates(startDate, endDate time.Time) ([]*Book
 	params := url.Values{}
 	params.Add("startDate", startDate.UTC().Format(time.RFC3339))
 	params.Add("endDate", endDate.UTC().Format(time.RFC3339))
-	
+
 	url := "https://members.wework.com/workplaceone/api/common-booking/past-bookings?" + params.Encode()
 	resp, err := w.doRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -333,6 +339,32 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookingResponse
 	return w.createBooking(date, space, quote)
 }
 
+// GetBookingQuote returns the booking quote for a given workspace and date, without creating a booking.
+func (w *WeWork) GetBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
+	return w.getBookingQuote(date, space)
+}
+
+// getQuoteParameters determines the correct LocationType and SpaceID for a quote.
+func getQuoteParameters(space *Workspace) (QuoteParameters, error) {
+	if space == nil {
+		return QuoteParameters{}, fmt.Errorf("workspace cannot be nil")
+	}
+
+	params := QuoteParameters{
+		LocationType: space.Location.AccountType,
+	}
+
+	// System A (e.g., Munich, Tokyo) uses KubeId from the reservable object.
+	if space.Reservable != nil && space.Reservable.KubeId != "" {
+		params.SpaceID = space.Reservable.KubeId
+	} else {
+		// System B (e.g., Bangkok) uses the top-level UUID.
+		params.SpaceID = space.UUID
+	}
+
+	return params, nil
+}
+
 func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
 	loc, err := time.LoadLocation(space.Location.TimeZone)
 	if err != nil {
@@ -359,13 +391,9 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
 
 	quoteURL := "https://members.wework.com/workplaceone/api/common-booking/quote"
-	// Get SpaceID from Reservable.KubeId if available
-	spaceID := ""
-	if space.Reservable != nil && space.Reservable.KubeId != "" {
-		spaceID = space.Reservable.KubeId
-	} else {
-		// Fallback to InventoryUUID for backward compatibility
-		spaceID = space.InventoryUUID
+	params, err := getQuoteParameters(space)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get quote parameters: %w", err)
 	}
 
 	quoteData := map[string]interface{}{
@@ -390,11 +418,11 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  2,
+		"LocationType":  params.LocationType,
 		"UTCOffset":     space.Location.TimezoneOffset,
 		"Currency":      "com.wework.credits",
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       spaceID,
+		"SpaceID":       params.SpaceID,
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,

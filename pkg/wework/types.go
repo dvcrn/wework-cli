@@ -6,19 +6,19 @@ import (
 )
 
 // CustomTime is a wrapper around time.Time to handle custom date formats
- type CustomTime struct {
-	 time.Time
- }
+type CustomTime struct {
+	time.Time
+}
 
- func (ct *CustomTime) UnmarshalJSON(b []byte) (err error) {
-	 s := strings.Trim(string(b), `"`)
-	 if s == "null" || s == "" || s == "0001-01-01T00:00:00Z" || s == "01/01/0001 00:00:00" {
-		 ct.Time = time.Time{}
-		 return
-	 }
-	 ct.Time, err = time.Parse(time.RFC3339, s)
-	 return
- }
+func (ct *CustomTime) UnmarshalJSON(b []byte) (err error) {
+	s := strings.Trim(string(b), `"`)
+	if s == "null" || s == "" || s == "0001-01-01T00:00:00Z" || s == "01/01/0001 00:00:00" {
+		ct.Time = time.Time{}
+		return
+	}
+	ct.Time, err = time.Parse(time.RFC3339, s)
+	return
+}
 
 type SharedWorkspaceResponse struct {
 	Limit    int `json:"limit"`
@@ -58,14 +58,14 @@ type UpcomingBookingsResponse struct {
 
 type Booking struct {
 	UUID                         string           `json:"uuid"`
-	StartsAt                     CustomTime        `json:"startsAt"`
-	EndsAt                       CustomTime        `json:"endsAt"`
+	StartsAt                     CustomTime       `json:"startsAt"`
+	EndsAt                       CustomTime       `json:"endsAt"`
 	TimeZone                     string           `json:"timezone"`
 	CreditOrder                  *CreditOrder     `json:"creditOrder"`
 	Reservable                   *SharedWorkspace `json:"reservable"`
 	IsAttendee                   bool             `json:"isAttendee"`
- 	ModificationDeadline         CustomTime       `json:"modificationDeadline"`
- 	Order                        Order            `json:"order"`
+	ModificationDeadline         CustomTime       `json:"modificationDeadline"`
+	Order                        Order            `json:"order"`
 	IsMultidayBooking            bool             `json:"isMultidayBooking"`
 	KubeSameDayCancelPolicy      bool             `json:"kubeSameDayCancelPolicy"`
 	IsFromKube                   bool             `json:"isFromKube"`
@@ -130,24 +130,24 @@ type Address struct {
 }
 
 type Workspace struct {
-	UUID                 string            `json:"uuid"`
-	InventoryUUID        string            `json:"inventoryUuid"`
-	ImageURL             string            `json:"imageURL"`
-	HeaderImageURL       string            `json:"headerImageUrl"`
-	Capacity             int               `json:"capacity"`
-	Credits              int               `json:"credits"`
-	Location             Location          `json:"location"`
-	OpenTime             string            `json:"openTime"`
-	CloseTime            string            `json:"closeTime"`
-	CancellationPolicy   string            `json:"cancellationPolicy"`
-	OperatingHours       []*OperatingHours `json:"operatingHours"`
-	ProductPrice         *ProductPrice     `json:"productPrice"`
-	Seat                 Seat              `json:"seat"`
-	SeatsAvailable       int               `json:"seatsAvailable"`
-	Order                any               `json:"order"`
-	IsVASTCoworking      bool              `json:"isVASTCoworking"`
-	IsAffiliateCoworking bool              `json:"isAffiliateCoworking"`
-	IsFranchiseCoworking bool              `json:"isFranchiseCoworking"`
+	UUID                 string               `json:"uuid"`
+	InventoryUUID        string               `json:"inventoryUuid"`
+	ImageURL             string               `json:"imageURL"`
+	HeaderImageURL       string               `json:"headerImageUrl"`
+	Capacity             int                  `json:"capacity"`
+	Credits              int                  `json:"credits"`
+	Location             Location             `json:"location"`
+	OpenTime             string               `json:"openTime"`
+	CloseTime            string               `json:"closeTime"`
+	CancellationPolicy   string               `json:"cancellationPolicy"`
+	OperatingHours       []*OperatingHours    `json:"operatingHours"`
+	ProductPrice         *ProductPrice        `json:"productPrice"`
+	Seat                 Seat                 `json:"seat"`
+	SeatsAvailable       int                  `json:"seatsAvailable"`
+	Order                any                  `json:"order"`
+	IsVASTCoworking      bool                 `json:"isVASTCoworking"`
+	IsAffiliateCoworking bool                 `json:"isAffiliateCoworking"`
+	IsFranchiseCoworking bool                 `json:"isFranchiseCoworking"`
 	IsHybridSpace        bool                 `json:"isHybridSpace"`
 	Reservable           *WorkspaceReservable `json:"reservable"`
 }
@@ -160,30 +160,31 @@ type WorkspaceReservable struct {
 }
 
 type Location struct {
-	Description                string            `json:"description"`
-	SupportEmail               string            `json:"supportEmail"`
-	PhoneNormalized            string            `json:"phoneNormalized"`
-	Currency                   string            `json:"currency"`
-	PrimaryTeamMember          TeamMember        `json:"primaryTeamMember"`
-	Amenities                  []Amenity         `json:"amenities"`
-	Details                    Details           `json:"details"`
-	TransitInfo                TransitInfo       `json:"transitInfo"`
-	MemberEntranceInstructions string            `json:"memberEntranceInstructions"`
-	ParkingInstructions        string            `json:"parkingInstructions"`
+	Description                string             `json:"description"`
+	SupportEmail               string             `json:"supportEmail"`
+	PhoneNormalized            string             `json:"phoneNormalized"`
+	Currency                   string             `json:"currency"`
+	PrimaryTeamMember          TeamMember         `json:"primaryTeamMember"`
+	Amenities                  []Amenity          `json:"amenities"`
+	Details                    Details            `json:"details"`
+	TransitInfo                TransitInfo        `json:"transitInfo"`
+	MemberEntranceInstructions string             `json:"memberEntranceInstructions"`
+	ParkingInstructions        string             `json:"parkingInstructions"`
 	CommunityBarFloor          *CommunityBarFloor `json:"communityBarFloor,omitempty"`
-	TimezoneOffset             string            `json:"timezoneOffset"`
-	TimeZoneIdentifier         string            `json:"timeZoneIdentifier"`
-	TimeZoneWinID              string            `json:"timeZoneWinId"`
-	UUID                       string            `json:"uuid"`
-	Name                       string            `json:"name"`
-	Latitude                   float64           `json:"latitude"`
-	Longitude                  float64           `json:"longitude"`
-	Address                    Address           `json:"address"`
-	TimeZone                   string            `json:"timeZone"`
-	Distance                   float64           `json:"distance"`
-	HasThirdPartyDisplay       bool              `json:"hasThirdPartyDisplay"`
-	IsMigrated                 bool              `json:"isMigrated"`
-	Images                     []LocationImage   `json:"images,omitempty"`
+	TimezoneOffset             string             `json:"timezoneOffset"`
+	TimeZoneIdentifier         string             `json:"timeZoneIdentifier"`
+	TimeZoneWinID              string             `json:"timeZoneWinId"`
+	UUID                       string             `json:"uuid"`
+	Name                       string             `json:"name"`
+	Latitude                   float64            `json:"latitude"`
+	Longitude                  float64            `json:"longitude"`
+	Address                    Address            `json:"address"`
+	TimeZone                   string             `json:"timeZone"`
+	Distance                   float64            `json:"distance"`
+	HasThirdPartyDisplay       bool               `json:"hasThirdPartyDisplay"`
+	IsMigrated                 bool               `json:"isMigrated"`
+	AccountType                int                `json:"accountType"`
+	Images                     []LocationImage    `json:"images,omitempty"`
 }
 
 type TeamMember struct {
