@@ -503,16 +503,11 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
 	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
 
+	// Note: Removing the date adjustment logic that was causing "already booked" errors
+	// The API should handle far-future dates appropriately
 	if daysUntilBooking := time.Until(dateInTz); daysUntilBooking > 30*24*time.Hour {
-		fmt.Println("!! Booking too far in the future, will try to book anyway, make sure you check the booking is correct !!")
-		daysOver := int(daysUntilBooking/(24*time.Hour) - 30)
-		adjustedDate := dateInTz.AddDate(0, 0, -(daysOver + 1))
-
-		// Recalculate times with adjusted date
-		startLocal = time.Date(adjustedDate.Year(), adjustedDate.Month(), adjustedDate.Day(), openHour, openMin, 0, 0, loc)
-		endLocal = time.Date(adjustedDate.Year(), adjustedDate.Month(), adjustedDate.Day(), closeHour, closeMin, 0, 0, loc)
-		startTime = startLocal.UTC().Format("2006-01-02T15:04:05Z")
-		endTime = endLocal.UTC().Format("2006-01-02T15:04:05Z")
+		// Don't print here - let the caller handle the warning
+		// The original date adjustment was causing issues by trying to book past dates
 	}
 
 	// Use LocationType-specific logic for booking SpaceID

@@ -117,16 +117,16 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 					}
 
 					if len(spaces.Response.Workspaces) > 1 {
-						// Need to stop spinner to show multiple options
-						cs.Success("Found multiple spaces")
-						fmt.Println("\nFound multiple spaces:")
+						// Use spinner's println to avoid concurrent writes
+						cs.Println("\nFound multiple spaces:")
 						for _, space := range spaces.Response.Workspaces {
-							fmt.Printf("Location: %s\n", space.Location.Name)
-							fmt.Printf("Reservable ID: %s\n", space.UUID)
-							fmt.Printf("Location ID: %s\n", space.Location.UUID)
-							fmt.Printf("Available: %d\n", space.Seat.Available)
-							fmt.Println("---")
+							cs.Printf("Location: %s\n", space.Location.Name)
+							cs.Printf("Reservable ID: %s\n", space.UUID)
+							cs.Printf("Location ID: %s\n", space.Location.UUID)
+							cs.Printf("Available: %d\n", space.Seat.Available)
+							cs.Println("---")
 						}
+						// Stop spinner with error after showing options
 						return fmt.Errorf("please specify a specific space to book")
 					}
 
@@ -152,6 +152,7 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				})
 
 				if err != nil {
+					// The spinner has already shown the error, but print it again for clarity
 					fmt.Printf("❌ %v\n", err)
 					continue
 				}

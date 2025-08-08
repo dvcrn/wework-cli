@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,12 +14,14 @@ import (
 
 // ContinuousSpinner maintains a single spinner throughout multiple operations
 type ContinuousSpinner struct {
-	program    *tea.Program
-	mu         sync.Mutex
-	finished   bool
-	messages   chan interface{}
-	isTerminal bool
-	noSpinner  bool
+	program      *tea.Program
+	mu           sync.Mutex
+	finished     bool
+	messages     chan interface{}
+	isTerminal   bool
+	noSpinner    bool
+	finalMessage string
+	finalSuccess bool
 }
 
 type continuousModel struct {
@@ -99,6 +102,9 @@ func (cs *ContinuousSpinner) Start(initialMessage string) {
 	go func() {
 		cs.program.Run()
 	}()
+
+	// Small delay to ensure the program starts
+	time.Sleep(50 * time.Millisecond)
 }
 
 // Update changes the spinner message without stopping it
@@ -116,6 +122,40 @@ func (cs *ContinuousSpinner) Update(message string) {
 	}
 }
 
+// Printf prints formatted text above the spinner without interfering with it
+func (cs *ContinuousSpinner) Printf(format string, args ...interface{}) {
+	if !cs.isTerminal || cs.noSpinner {
+		fmt.Printf(format, args...)
+		return
+	}
+
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	if cs.program != nil && !cs.finished {
+		cs.program.Printf(format, args...)
+	} else {
+		fmt.Printf(format, args...)
+	}
+}
+
+// Println prints text above the spinner without interfering with it
+func (cs *ContinuousSpinner) Println(args ...interface{}) {
+	if !cs.isTerminal || cs.noSpinner {
+		fmt.Println(args...)
+		return
+	}
+
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	if cs.program != nil && !cs.finished {
+		cs.program.Println(args...)
+	} else {
+		fmt.Println(args...)
+	}
+}
+
 // Success stops the spinner with a success message
 func (cs *ContinuousSpinner) Success(message string) {
 	if !cs.isTerminal || cs.noSpinner {
@@ -128,6 +168,8 @@ func (cs *ContinuousSpinner) Success(message string) {
 
 	if cs.program != nil && !cs.finished {
 		cs.finished = true
+		cs.finalMessage = message
+		cs.finalSuccess = true
 		cs.program.Send(updateMsg{message: message})
 		cs.program.Send(doneMsg{err: nil})
 	}
@@ -145,6 +187,8 @@ func (cs *ContinuousSpinner) Error(message string) {
 
 	if cs.program != nil && !cs.finished {
 		cs.finished = true
+		cs.finalMessage = message
+		cs.finalSuccess = false
 		cs.program.Send(updateMsg{message: message})
 		cs.program.Send(doneMsg{err: fmt.Errorf(message)})
 	}
@@ -161,6 +205,20 @@ func WithContinuousSpinner(operations func(*ContinuousSpinner) error) error {
 		cs.Error(err.Error())
 	}
 
+	// Wait for the program to finish and display final message
+	if cs.program != nil {
+		time.Sleep(100 * time.Millisecond)
+
+		// Print the final message after spinner stops
+		if cs.finalMessage != "" {
+			if cs.finalSuccess {
+				fmt.Printf("✓ %s\n", cs.finalMessage)
+			} else {
+				fmt.Printf("✗ %s\n", cs.finalMessage)
+			}
+		}
+	}
+
 	return err
 }
 
@@ -174,6 +232,20 @@ func WithContinuousSpinnerConfig(noSpinner bool, operations func(*ContinuousSpin
 
 	if err != nil {
 		cs.Error(err.Error())
+	}
+
+	// Wait for the program to finish and display final message
+	if cs.program != nil {
+		time.Sleep(100 * time.Millisecond)
+
+		// Print the final message after spinner stops
+		if cs.finalMessage != "" {
+			if cs.finalSuccess {
+				fmt.Printf("✓ %s\n", cs.finalMessage)
+			} else {
+				fmt.Printf("✗ %s\n", cs.finalMessage)
+			}
+		}
 	}
 
 	return err
