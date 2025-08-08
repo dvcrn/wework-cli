@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -110,6 +109,9 @@ func NewQuoteCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 
 			// Get quote for each date
 			for _, bookingDate := range dates {
+				var finalQuote *wework.QuoteResponse
+				var finalSpace wework.Workspace
+
 				err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
 					// Check availability
 					cs.Update(fmt.Sprintf("Checking availability for %s", bookingDate.Format("2006-01-02")))
@@ -121,45 +123,45 @@ func NewQuoteCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 						return fmt.Errorf("no spaces found for %s", bookingDate)
 					}
 
+					// Handle multiple spaces without printing inside the spinner
 					if len(spaces.Response.Workspaces) > 1 {
-						cs.Success("Found multiple spaces")
-						fmt.Println("\nFound multiple spaces:")
-						for _, space := range spaces.Response.Workspaces {
-							fmt.Printf("Location: %s\n", space.Location.Name)
-							if space.Reservable != nil {
-								fmt.Printf("Reservable KubeID: %s\n", space.Reservable.KubeId)
-							}
-							fmt.Printf("Space UUID: %s\n", space.UUID)
-							fmt.Printf("Available: %d\n", space.Seat.Available)
-							fmt.Println("---")
-						}
-						return fmt.Errorf("please specify a more specific space to quote, or use the UUIDs provided")
+						// This case will be handled outside the spinner
+						return fmt.Errorf("multiple spaces found, please be more specific")
 					}
 
-					space := spaces.Response.Workspaces[0]
+					finalSpace = spaces.Response.Workspaces[0]
 
 					// Get quote
-					cs.Update(fmt.Sprintf("Getting quote for %s on %s", space.Location.Name, bookingDate.Format("2006-01-02")))
-					quote, err := ww.GetBookingQuote(bookingDate, &space)
+					cs.Update(fmt.Sprintf("Getting quote for %s on %s", finalSpace.Location.Name, bookingDate.Format("2006-01-02")))
+					quote, err := ww.GetBookingQuote(bookingDate, &finalSpace)
 					if err != nil {
 						return fmt.Errorf("failed to get booking quote: %w", err)
 					}
+					finalQuote = quote
 
-					// Print the quote response as nicely formatted JSON
-					quoteJSON, err := json.MarshalIndent(quote, "", "  ")
-					if err != nil {
-						return fmt.Errorf("failed to format quote response into JSON: %w", err)
-					}
-
-					cs.Success(fmt.Sprintf("Quote for %s on %s:", space.Location.Name, bookingDate.Format("2006-01-02")))
-					fmt.Println(string(quoteJSON))
-
+					cs.Success("✔ Done")
 					return nil
 				})
 
 				if err != nil {
-					fmt.Printf("❌ %v\n", err)
+					// Handle the specific case of multiple spaces cleanly
+					if err.Error() == "multiple spaces found, please be more specific" {
+						fmt.Println("Found multiple spaces. Please specify a more specific name or use --location-uuid.")
+					} else {
+						fmt.Printf("❌ %v\n", err)
+					}
 					continue
+				}
+
+				if finalQuote != nil {
+					fmt.Printf("\nQuote for %s on %s:\n", finalSpace.Location.Name, bookingDate.Format("2006-01-02"))
+					currency := strings.Replace(finalQuote.GrandTotal.Currency, "com.wework.", "", 1)
+					fmt.Printf("Quote UUID: %s\n", finalQuote.UUID)
+					fmt.Printf("Total Cost: %.2f %s\n", finalQuote.GrandTotal.Amount, currency)
+					if finalQuote.GrandTotal.CreditRatio > 0 {
+						fmt.Printf("Credit Ratio: %.2f\n", finalQuote.GrandTotal.CreditRatio)
+					}
+					fmt.Println()
 				}
 			}
 

@@ -479,13 +479,9 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		endTime = endLocal.UTC().Format("2006-01-02T15:04:05Z")
 	}
 
-	// Get SpaceID from Reservable.KubeId if available
-	spaceID := ""
-	if space.Reservable != nil && space.Reservable.KubeId != "" {
-		spaceID = space.Reservable.KubeId
-	} else {
-		// Fallback to InventoryUUID for backward compatibility
-		spaceID = space.InventoryUUID
+	params, err := getQuoteParameters(space)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get quote parameters for booking: %w", err)
 	}
 
 	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
@@ -513,11 +509,11 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  2,
+		"LocationType":  params.LocationType,
 		"UTCOffset":     space.Location.TimezoneOffset,
 		"CreditRatio":   quote.GrandTotal.CreditRatio,
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       spaceID,
+		"SpaceID":       params.SpaceID,
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,
