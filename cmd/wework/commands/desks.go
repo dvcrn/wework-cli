@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dvcrn/wework-cli/pkg/spinner"
+	"github.com/dvcrn/wework-cli/pkg/tzdate"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -26,30 +27,62 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 			}
 
 			var locationUUIDs []string
+			var timezone string
 			if city != "" {
+				type locationSearchResult struct {
+					UUIDs    []string
+					TimeZone string
+				}
 				// Use spinner for location search
 				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting locations in %s", city), func() (interface{}, error) {
 					res, err := ww.GetLocationsByGeo(city)
 					if err != nil {
 						return nil, fmt.Errorf("failed to get locations: %v", err)
 					}
+
+					if len(res.LocationsByGeo) == 0 {
+						return nil, fmt.Errorf("no locations found in %s", city)
+					}
+
 					var uuids []string
 					for _, location := range res.LocationsByGeo {
 						uuids = append(uuids, location.UUID)
 					}
-					return uuids, nil
+
+					// Return both uuids and the timezone of the first location
+					return &locationSearchResult{
+						UUIDs:    uuids,
+						TimeZone: res.LocationsByGeo[0].TimeZone,
+					}, nil
 				})
 				if err != nil {
 					return err
 				}
-				locationUUIDs = result.([]string)
+				searchResult := result.(*locationSearchResult)
+				locationUUIDs = searchResult.UUIDs
+				timezone = searchResult.TimeZone
 			} else {
 				locationUUIDs = strings.Split(locationUUID, ",")
+				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting location details for %s", locationUUIDs[0]), func() (interface{}, error) {
+					return ww.GetSpacesByUUIDs([]string{locationUUIDs[0]})
+				})
+				if err != nil {
+					return fmt.Errorf("failed to get location details: %w", err)
+				}
+				response := result.(*wework.SharedWorkspaceResponse)
+				if len(response.Response.Workspaces) == 0 {
+					return fmt.Errorf("no spaces found for location UUID %s", locationUUIDs[0])
+				}
+				timezone = response.Response.Workspaces[0].Location.TimeZone
 			}
 
-			dateParsed, err := time.Parse("2006-01-02", date)
+			if timezone == "" {
+				return fmt.Errorf("could not determine timezone for desks lookup")
+			}
+
+			dateParsed, err := tzdate.ParseInTimezone(date, timezone)
 			if err != nil {
-				return fmt.Errorf("invalid date format: %v", err)
+				return err
 			}
 
 			// Get available spaces with spinner

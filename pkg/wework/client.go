@@ -157,7 +157,7 @@ func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*Share
 	params.Add("roomTypeFilter", "")
 	params.Add("date", t.Format("2006-01-02"))
 	params.Add("duration", "30")
-	params.Add("locationOffset", "+09:00")
+	params.Add("locationOffset", t.Format("-07:00"))
 	params.Add("isWeb", "true")
 	params.Add("capacity", "0")
 	params.Add("endDate", "")
