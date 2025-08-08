@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dvcrn/wework-cli/pkg/spinner"
+	"github.com/dvcrn/wework-cli/pkg/tzdate"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -69,12 +70,12 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 					return fmt.Errorf("invalid date range format. Use YYYY-MM-DD~YYYY-MM-DD")
 				}
 
-				startDate, err := time.Parse("2006-01-02", strings.TrimSpace(parts[0]))
+				startDate, err := tzdate.ParseInTimezone("2006-01-02", strings.TrimSpace(parts[0]), "Local")
 				if err != nil {
 					return fmt.Errorf("invalid start date: %v", err)
 				}
 
-				endDate, err := time.Parse("2006-01-02", strings.TrimSpace(parts[1]))
+				endDate, err := tzdate.ParseInTimezone("2006-01-02", strings.TrimSpace(parts[1]), "Local")
 				if err != nil {
 					return fmt.Errorf("invalid end date: %v", err)
 				}
@@ -85,7 +86,7 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 			} else if strings.Contains(date, ",") {
 				// Comma-separated list
 				for _, d := range strings.Split(date, ",") {
-					parsed, err := time.Parse("2006-01-02", strings.TrimSpace(d))
+					parsed, err := tzdate.ParseInTimezone("2006-01-02", strings.TrimSpace(d), "Local")
 					if err != nil {
 						return fmt.Errorf("invalid date format: %v", err)
 					}
@@ -93,21 +94,11 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				}
 			} else {
 				// Single date
-				parsed, err := time.Parse("2006-01-02", strings.TrimSpace(date))
+				parsed, err := tzdate.ParseInTimezone("2006-01-02", strings.TrimSpace(date), "Local")
 				if err != nil {
 					return fmt.Errorf("invalid date format: %v", err)
 				}
 				dates = append(dates, parsed)
-			}
-
-			// by default, assume everything is in current timezone
-			tz, err := time.LoadLocation("Local")
-			if err != nil {
-				return fmt.Errorf("failed to load local timezone: %v", err)
-			}
-
-			for i, d := range dates {
-				dates[i] = d.In(tz)
 			}
 
 			// Book for each date

@@ -80,7 +80,7 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 				return fmt.Errorf("could not determine timezone for desks lookup")
 			}
 
-			dateParsed, err := tzdate.ParseInTimezone(date, timezone)
+			dateParsed, err := tzdate.ParseInTimezone("2006-01-02", date, "Local")
 			if err != nil {
 				return err
 			}
