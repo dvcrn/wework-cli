@@ -74,7 +74,7 @@ func RunWithSpinner(message string, fn func() (interface{}, error)) (interface{}
 	// Check if spinner should be disabled
 	isTerminal := term.IsTerminal(int(os.Stdout.Fd()))
 	noSpinner := os.Getenv("WEWORK_NO_SPINNER") == "true" || os.Getenv("NO_SPINNER") == "true"
-	
+
 	if !isTerminal || noSpinner {
 		// No spinner, just run the function and print status
 		fmt.Println(message)

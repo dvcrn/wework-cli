@@ -354,15 +354,51 @@ func getQuoteParameters(space *Workspace) (QuoteParameters, error) {
 		LocationType: space.Location.AccountType,
 	}
 
-	// System A (e.g., Munich, Tokyo) uses KubeId from the reservable object.
-	if space.Reservable != nil && space.Reservable.KubeId != "" {
-		params.SpaceID = space.Reservable.KubeId
+	// Use InventoryUUID as the primary SpaceID (Tokyo dump shows this is what's actually used)
+	// Fall back to UUID if InventoryUUID is empty
+	if space.InventoryUUID != "" {
+		params.SpaceID = space.InventoryUUID
 	} else {
-		// System B (e.g., Bangkok) uses the top-level UUID.
 		params.SpaceID = space.UUID
 	}
 
 	return params, nil
+}
+
+// getBookingSpaceID determines the correct SpaceID for a booking based on LocationType.
+// Different WeWork regions/systems use different ID fields for bookings.
+func getBookingSpaceID(space *Workspace) string {
+	switch space.Location.AccountType {
+	case 2:
+		// LocationType 2 (e.g., Munich) - use KubeId if available
+		if space.Reservable != nil && space.Reservable.KubeId != "" {
+			return space.Reservable.KubeId
+		}
+		// Fallback to inventoryUuid
+		if space.InventoryUUID != "" {
+			return space.InventoryUUID
+		}
+		return space.UUID
+
+	case 4:
+		// LocationType 4 (e.g., Tokyo) - use inventoryUuid
+		if space.InventoryUUID != "" {
+			return space.InventoryUUID
+		}
+		// Fallback to uuid
+		return space.UUID
+
+	case 0:
+		// LocationType 0 (e.g., Bangkok) - use uuid
+		return space.UUID
+
+	default:
+		// Unknown LocationType - try inventoryUuid first, then uuid
+		if space.InventoryUUID != "" {
+			return space.InventoryUUID
+		}
+		return space.UUID
+	}
 }
 
 func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
@@ -479,10 +515,8 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		endTime = endLocal.UTC().Format("2006-01-02T15:04:05Z")
 	}
 
-	params, err := getQuoteParameters(space)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get quote parameters for booking: %w", err)
-	}
+	// Use LocationType-specific logic for booking SpaceID
+	bookingSpaceID := getBookingSpaceID(space)
 
 	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
 	bookingData := map[string]interface{}{
@@ -509,11 +543,12 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 			"locationCountry":    space.Location.Address.Country,
 			"locationState":      space.Location.Address.State,
 		},
-		"LocationType":  params.LocationType,
+		"LocationType":  space.Location.AccountType, // Use dynamic LocationType from accountType
 		"UTCOffset":     space.Location.TimezoneOffset,
+		"Currency":      "com.wework.credits", // Currency field is required
 		"CreditRatio":   quote.GrandTotal.CreditRatio,
 		"LocationID":    space.Location.UUID,
-		"SpaceID":       params.SpaceID,
+		"SpaceID":       bookingSpaceID, // Use LocationType-specific SpaceID
 		"WeWorkSpaceID": space.UUID,
 		"StartTime":     startTime,
 		"EndTime":       endTime,
