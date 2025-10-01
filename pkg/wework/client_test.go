@@ -1,6 +1,7 @@
 package wework
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -93,6 +94,91 @@ func TestGetQuoteParameters(t *testing.T) {
 				}
 				if params.SpaceID != tc.expectedParams.SpaceID {
 					t.Errorf("Expected SpaceID to be '%s', but got '%s'", tc.expectedParams.SpaceID, params.SpaceID)
+				}
+			}
+		})
+	}
+}
+
+func TestFindCityByFuzzyName(t *testing.T) {
+	cities := []*CityDetailsResponse{
+		{Name: "Tokyo"},
+		{Name: "New York"},
+		{Name: "London"},
+		{Name: "Paris"},
+		{Name: "Berlin"},
+	}
+
+	tests := []struct {
+		name           string
+		searchName     string
+		expectedCities []string
+		expectError    bool
+		errorContains  string
+	}{
+		{
+			name:           "exact match",
+			searchName:     "Tokyo",
+			expectedCities: []string{"Tokyo"},
+			expectError:    false,
+		},
+		{
+			name:           "fuzzy match single result",
+			searchName:     "York",
+			expectedCities: []string{"New York"},
+			expectError:    false,
+		},
+		{
+			name:           "fuzzy match multiple results",
+			searchName:     "o",
+			expectedCities: []string{"Tokyo", "New York", "London"},
+			expectError:    false,
+		},
+		{
+			name:          "no match",
+			searchName:    "Nonexistent",
+			expectError:   true,
+			errorContains: "no city found",
+		},
+		{
+			name:           "case insensitive exact match",
+			searchName:     "tokyo",
+			expectedCities: []string{"Tokyo"},
+			expectError:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matchedCities, err := FindCityByFuzzyName(tt.searchName, cities)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error, got none")
+				} else if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error to contain '%s', got '%s'", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				actualNames := make([]string, len(matchedCities))
+				for i, city := range matchedCities {
+					actualNames[i] = city.Name
+				}
+				if len(actualNames) != len(tt.expectedCities) {
+					t.Errorf("expected %d cities, got %d: %v", len(tt.expectedCities), len(actualNames), actualNames)
+				}
+				for _, expected := range tt.expectedCities {
+					found := false
+					for _, actual := range actualNames {
+						if actual == expected {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("expected city %s not found in %v", expected, actualNames)
+					}
 				}
 			}
 		})

@@ -9,11 +9,16 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/sahilm/fuzzy"
 )
 
 type WeWork struct {
-	client *BaseClient
+	client     *BaseClient
+	cities     []*CityDetailsResponse
+	citiesOnce sync.Once
 }
 
 // QuoteParameters holds the dynamically determined parameters for a booking quote.
@@ -577,6 +582,39 @@ func (w *WeWork) GetCityDetails() ([]*CityDetailsResponse, error) {
 	}
 
 	return result, nil
+}
+
+func (w *WeWork) GetCities() ([]*CityDetailsResponse, error) {
+	var err error
+	w.citiesOnce.Do(func() {
+		w.cities, err = w.GetCityDetails()
+	})
+	return w.cities, err
+}
+
+func FindCityByFuzzyName(name string, cities []*CityDetailsResponse) ([]*CityDetailsResponse, error) {
+	// First, check for exact case-insensitive match
+	for _, city := range cities {
+		if strings.EqualFold(name, city.Name) {
+			return []*CityDetailsResponse{city}, nil
+		}
+	}
+
+	// If no exact match, perform fuzzy search and return all matches
+	var names []string
+	for _, city := range cities {
+		names = append(names, city.Name)
+	}
+	matches := fuzzy.Find(name, names)
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no city found matching '%s'", name)
+	}
+
+	var matchedCities []*CityDetailsResponse
+	for _, m := range matches {
+		matchedCities = append(matchedCities, cities[m.Index])
+	}
+	return matchedCities, nil
 }
 
 func (w *WeWork) GetLocationFeatures(locationUUID string, amenitiesOnly bool) (*LocationFeaturesResponse, error) {

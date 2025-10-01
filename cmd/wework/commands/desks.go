@@ -34,25 +34,39 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 					TimeZone string
 				}
 				// Use spinner for location search
-				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting locations in %s", city), func() (interface{}, error) {
-					res, err := ww.GetLocationsByGeo(city)
+				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting locations for matched cities"), func() (interface{}, error) {
+					cities, err := ww.GetCities()
 					if err != nil {
-						return nil, fmt.Errorf("failed to get locations: %v", err)
+						return nil, fmt.Errorf("failed to get cities: %v", err)
 					}
 
-					if len(res.LocationsByGeo) == 0 {
-						return nil, fmt.Errorf("no locations found in %s", city)
+					matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+					if err != nil {
+						return nil, err
+					}
+
+					var allLocations []wework.GeoLocation
+					for _, matchedCity := range matchedCities {
+						res, err := ww.GetLocationsByGeo(matchedCity.Name)
+						if err != nil {
+							return nil, fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+						}
+						allLocations = append(allLocations, res.LocationsByGeo...)
+					}
+
+					if len(allLocations) == 0 {
+						return nil, fmt.Errorf("no locations found in matched cities")
 					}
 
 					var uuids []string
-					for _, location := range res.LocationsByGeo {
+					for _, location := range allLocations {
 						uuids = append(uuids, location.UUID)
 					}
 
 					// Return both uuids and the timezone of the first location
 					return &locationSearchResult{
 						UUIDs:    uuids,
-						TimeZone: res.LocationsByGeo[0].TimeZone,
+						TimeZone: allLocations[0].TimeZone,
 					}, nil
 				})
 				if err != nil {

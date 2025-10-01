@@ -3,7 +3,6 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
@@ -32,24 +31,31 @@ func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 					return fmt.Errorf("either --location-uuid or both --city and --name must be provided")
 				}
 
-				// Get locations by city
-				res, err := ww.GetLocationsByGeo(city)
+				// Get cities and fuzzy match
+				cities, err := ww.GetCities()
 				if err != nil {
-					return fmt.Errorf("failed to get locations: %v", err)
+					return fmt.Errorf("failed to get cities: %v", err)
 				}
 
-				// Find the location by name
-				found := false
-				for _, location := range res.LocationsByGeo {
-					if strings.Contains(strings.ToLower(location.Name), strings.ToLower(name)) {
-						locationUUID = location.UUID
-						found = true
-						break
+				matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+				if err != nil {
+					return err
+				}
+
+				// Get locations from all matched cities
+				var allLocations []wework.GeoLocation
+				for _, matchedCity := range matchedCities {
+					res, err := ww.GetLocationsByGeo(matchedCity.Name)
+					if err != nil {
+						return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
 					}
+					allLocations = append(allLocations, res.LocationsByGeo...)
 				}
 
-				if !found {
-					return fmt.Errorf("no location found with name containing '%s' in city '%s'", name, city)
+				// Find the location by fuzzy name
+				locationUUID, err = FindLocationByFuzzyName(name, allLocations)
+				if err != nil {
+					return err
 				}
 			}
 

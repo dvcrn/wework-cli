@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func findLocationByFuzzyName(name string, locations []wework.GeoLocation) (string, error) {
+func FindLocationByFuzzyName(name string, locations []wework.GeoLocation) (string, error) {
 	var names []string
 	for _, loc := range locations {
 		names = append(names, loc.Name)
@@ -53,12 +53,26 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 			if city != "" && locationUUID == "" {
 				// Use spinner for location search
 				result, err := spinner.RunWithSpinner(fmt.Sprintf("Searching for locations in %s", city), func() (interface{}, error) {
-					res, err := ww.GetLocationsByGeo(city)
+					cities, err := ww.GetCities()
 					if err != nil {
-						return nil, fmt.Errorf("failed to get locations: %v", err)
+						return nil, fmt.Errorf("failed to get cities: %v", err)
 					}
 
-					foundUUID, err := findLocationByFuzzyName(name, res.LocationsByGeo)
+					matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+					if err != nil {
+						return nil, err
+					}
+
+					var allLocations []wework.GeoLocation
+					for _, matchedCity := range matchedCities {
+						res, err := ww.GetLocationsByGeo(matchedCity.Name)
+						if err != nil {
+							return nil, fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+						}
+						allLocations = append(allLocations, res.LocationsByGeo...)
+					}
+
+					foundUUID, err := FindLocationByFuzzyName(name, allLocations)
 					if err != nil {
 						return nil, err
 					}

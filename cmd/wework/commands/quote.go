@@ -30,23 +30,33 @@ func NewQuoteCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 				return fmt.Errorf("--location-uuid OR (--city + --name) is required for quoting")
 			}
 
-			var availableLocations []string
 			var targetLocationUUID = locationUUID
 
 			// Search for location if needed, same as book.go
 			if city != "" && locationUUID == "" {
-				result, err := spinner.RunWithSpinner(fmt.Sprintf("Searching for locations in %s", city), func() (interface{}, error) {
-					res, err := ww.GetLocationsByGeo(city)
+				result, err := spinner.RunWithSpinner(fmt.Sprintf("Searching for locations in matched cities"), func() (interface{}, error) {
+					cities, err := ww.GetCities()
 					if err != nil {
-						return nil, fmt.Errorf("failed to get locations: %v", err)
+						return nil, fmt.Errorf("failed to get cities: %v", err)
 					}
 
-					var foundUUID string
-					for _, location := range res.LocationsByGeo {
-						availableLocations = append(availableLocations, location.Name)
-						if name == location.Name {
-							foundUUID = location.UUID
+					matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+					if err != nil {
+						return nil, err
+					}
+
+					var allLocations []wework.GeoLocation
+					for _, matchedCity := range matchedCities {
+						res, err := ww.GetLocationsByGeo(matchedCity.Name)
+						if err != nil {
+							return nil, fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
 						}
+						allLocations = append(allLocations, res.LocationsByGeo...)
+					}
+
+					foundUUID, err := FindLocationByFuzzyName(name, allLocations)
+					if err != nil {
+						return nil, err
 					}
 					return foundUUID, nil
 				})
@@ -59,8 +69,7 @@ func NewQuoteCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 			}
 
 			if targetLocationUUID == "" {
-				return fmt.Errorf("could not find any space with the name '%s'. Available locations for city %s are: %s",
-					name, city, strings.Join(availableLocations, ", "))
+				return fmt.Errorf("could not find any space with the name '%s'", name)
 			}
 
 			// Parse dates, same as book.go
