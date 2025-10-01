@@ -45,9 +45,8 @@ func NewBaseClient() (*BaseClient, error) {
 		headers: http.Header{
 			"Accept":           []string{"application/json, text/plain, */*"},
 			"Content-Type":     []string{"application/json"},
-			"Request-Source":   []string{"com.wework.ondemand/WorkplaceOne/Prod/iOS/2.70.1(18.5)"},
+			"Request-Source":   []string{"com.wework.ondemand/WorkplaceOne/Prod/iOS/2.71.0(26.1)"},
 			"WeWorkMemberType": []string{"2"},
-			"Host":             []string{"members.wework.com"},
 			"Origin":           []string{"https://members.wework.com"},
 			"User-Agent":       []string{"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.3.1 Safari/605.1.15"},
 			"Sec-Fetch-Mode":   []string{"cors"},
@@ -63,7 +62,15 @@ func NewBaseClient() (*BaseClient, error) {
 
 // Do overrides the default Do method to add common headers
 func (c *BaseClient) Do(req *http.Request) (*http.Response, error) {
-	req.Header = c.headers.Clone()
+	merged := c.headers.Clone()
+	for key, values := range req.Header {
+		merged.Del(key)
+		for _, value := range values {
+			merged.Add(key, value)
+		}
+	}
+	merged.Set("Host", req.URL.Host)
+	req.Header = merged
 
 	resp, err := c.Client.Do(req)
 	if err != nil {

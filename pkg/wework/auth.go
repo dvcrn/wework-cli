@@ -7,10 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"strings"
-
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -153,8 +154,19 @@ func (w *WeWorkAuth) getAuth0Config() error {
 }
 
 func (w *WeWorkAuth) Authenticate() (*LoginByAuth0TokenResponse, *OAuthTokenResponse, error) {
-	// Step 1: Get initial state
 	nonce := generateNonce()
+
+	if loginTicket, err := w.tryCrossOriginAuthenticate(); err == nil {
+		code, err := w.authorizeWithLoginTicket(loginTicket, generateNonce(), nonce)
+		if err == nil {
+			tokens, err := w.exchangeCodeForTokens(code)
+			if err == nil {
+				res, err := w.loginToWeWork(tokens)
+				return res, tokens, err
+			}
+		}
+	}
+
 	authParams := url.Values{}
 	authParams.Add("redirect_uri", w.config.RedirectURI)
 	authParams.Add("client_id", w.config.ClientID)
@@ -170,155 +182,456 @@ func (w *WeWorkAuth) Authenticate() (*LoginByAuth0TokenResponse, *OAuthTokenResp
 	authURL := fmt.Sprintf("https://%s/authorize?%s", w.config.Domain, authParams.Encode())
 	resp, err := w.client.Get(authURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get auth URL: %v", err)
+		return nil, nil, fmt.Errorf("failed to get auth URL: %w", err)
 	}
-	defer resp.Body.Close()
 
-	loginURL := resp.Header.Get("Location")
-	if loginURL == "" {
+	loginLocation := resp.Header.Get("Location")
+	if loginLocation == "" {
 		return nil, nil, fmt.Errorf("no login URL in response")
 	}
 
-	parsedURL, err := url.Parse(loginURL)
+	loginURL, err := resolveRelativeURL(resp.Request.URL, loginLocation)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse login URL: %v", err)
+		return nil, nil, fmt.Errorf("failed to resolve login URL: %w", err)
 	}
 
-	state := parsedURL.Query().Get("state")
+	parsedLogin, err := url.Parse(loginURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse login URL: %w", err)
+	}
+
+	state := parsedLogin.Query().Get("state")
 	if state == "" {
 		return nil, nil, fmt.Errorf("no state in login URL")
 	}
 
-	// Handle IDP redirect
-	idpResp, err := w.client.Get(fmt.Sprintf("https://%s%s", w.config.Domain, loginURL))
+	code, err := w.followAuthorizationRedirects(resp, state)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to handle IDP redirect: %v", err)
-	}
-	defer idpResp.Body.Close()
-
-	if idpResp.StatusCode >= 300 && idpResp.StatusCode < 400 {
-		loginURL = idpResp.Header.Get("Location")
+		return nil, nil, err
 	}
 
-	var csrfToken string
-	for _, cookie := range w.client.Jar.Cookies(parsedURL) {
-		if cookie.Name == "_csrf" {
-			csrfToken = cookie.Value
-			break
+	tokens, err := w.exchangeCodeForTokens(code)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	res, err := w.loginToWeWork(tokens)
+	return res, tokens, err
+}
+
+func (w *WeWorkAuth) tryCrossOriginAuthenticate() (string, error) {
+	bodyStruct := map[string]string{
+		"client_id":       w.config.ClientID,
+		"username":        w.username,
+		"password":        w.password,
+		"realm":           "id-wework",
+		"credential_type": "http://auth0.com/oauth/grant-type/password-realm",
+	}
+
+	body, err := json.Marshal(bodyStruct)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal credential payload: %w", err)
+	}
+
+	url := fmt.Sprintf("https://%s/co/authenticate", w.config.Domain)
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return "", fmt.Errorf("failed to create credential request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Origin", "https://members.wework.com")
+	req.Header.Set("Referer", "https://members.wework.com/workplaceone/content2/login")
+	req.Header.Set("Auth0-Client", "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=")
+
+	resp, err := w.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to authenticate credentials: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		LoginTicket      string `json:"login_ticket"`
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode credential response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if result.Error != "" {
+			return "", fmt.Errorf("authentication failed: %s (%s)", result.ErrorDescription, result.Error)
 		}
+		return "", fmt.Errorf("authentication failed with status %d", resp.StatusCode)
 	}
 
-	// Step 2: Perform login
-	loginData := map[string]interface{}{
-		"client_id":     w.config.ClientID,
-		"redirect_uri":  w.config.RedirectURI,
-		"tenant":        "wework-prod",
-		"response_type": "code",
+	if result.LoginTicket == "" {
+		return "", fmt.Errorf("authentication failed: missing login ticket in response")
+	}
+
+	return result.LoginTicket, nil
+}
+
+func (w *WeWorkAuth) authorizeWithLoginTicket(loginTicket, state, nonce string) (string, error) {
+	params := url.Values{}
+	params.Add("redirect_uri", w.config.RedirectURI)
+	params.Add("client_id", w.config.ClientID)
+	params.Add("audience", w.config.Audience)
+	params.Add("scope", "openid profile email offline_access")
+	params.Add("response_type", "code")
+	params.Add("response_mode", "query")
+	params.Add("nonce", nonce)
+	params.Add("state", state)
+	params.Add("code_challenge", w.codeChallenge)
+	params.Add("code_challenge_method", "S256")
+	params.Add("auth0Client", "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=")
+	params.Add("login_ticket", loginTicket)
+
+	cookiePayload := map[string]string{
+		"nonce":         nonce,
+		"code_verifier": w.codeVerifier,
 		"scope":         "openid profile email offline_access",
 		"audience":      w.config.Audience,
+		"redirect_uri":  w.config.RedirectURI,
 		"state":         state,
-		"nonce":         nonce,
-		"connection":    "id-wework",
-		"username":      w.username,
-		"password":      w.password,
-		"_csrf":         csrfToken,
-		"_intstate":     "deprecated",
-		"protocol":      "oauth2",
-		"popup_options": map[string]interface{}{},
 	}
 
-	loginBody, err := json.Marshal(loginData)
+	if payloadBytes, err := json.Marshal(cookiePayload); err == nil {
+		cookieValue := url.QueryEscape(string(payloadBytes))
+		domainURL, err := url.Parse(fmt.Sprintf("https://%s", w.config.Domain))
+		if err == nil {
+			cookies := []*http.Cookie{
+				{
+					Name:  fmt.Sprintf("_legacy_a0.spajs.txs.%s", w.config.ClientID),
+					Value: cookieValue,
+					Path:  "/",
+				},
+				{
+					Name:  fmt.Sprintf("a0.spajs.txs.%s", w.config.ClientID),
+					Value: cookieValue,
+					Path:  "/",
+				},
+			}
+			w.client.Jar.SetCookies(domainURL, cookies)
+		}
+	}
+
+	authURL := fmt.Sprintf("https://%s/authorize?%s", w.config.Domain, params.Encode())
+	resp, err := w.client.Get(authURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal login data: %v", err)
+		return "", fmt.Errorf("failed to initiate authorization: %w", err)
 	}
+	defer resp.Body.Close()
 
-	loginReq, err := http.NewRequest("POST", fmt.Sprintf("https://%s/usernamepassword/login", w.config.Domain), bytes.NewBuffer(loginBody))
+	return w.followAuthorizationRedirects(resp, state)
+}
+
+func (w *WeWorkAuth) fetchForm(pageURL string) (string, url.Values, string, error) {
+	req, err := http.NewRequest(http.MethodGet, pageURL, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create login request: %v", err)
+		return "", nil, "", fmt.Errorf("failed to create form request: %w", err)
 	}
 
-	loginReq.Header.Set("Content-Type", "application/json")
-	loginResp, err := w.client.Do(loginReq)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+
+	resp, err := w.client.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to perform login: %v", err)
+		return "", nil, "", fmt.Errorf("failed to load form page %s: %w", pageURL, err)
 	}
-	defer loginResp.Body.Close()
+	defer resp.Body.Close()
 
-	if loginResp.StatusCode != http.StatusOK {
-		// try to parse into WeWorkLoginError
-		var loginError WeWorkLoginError
-		if err := json.NewDecoder(loginResp.Body).Decode(&loginError); err == nil {
-			return nil, nil, fmt.Errorf("login failed with error: %w", &loginError)
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return "", nil, "", fmt.Errorf("failed to parse form page: %w", err)
+	}
+
+	form := doc.Find("form").First()
+	if form.Length() == 0 {
+		return "", nil, "", fmt.Errorf("no form found at %s", pageURL)
+	}
+
+	action, values, err := extractForm(form, resp.Request.URL)
+	if err != nil {
+		return "", nil, "", err
+	}
+
+	return action, values, resp.Request.URL.String(), nil
+}
+
+func (w *WeWorkAuth) submitForm(actionURL, referer string, values url.Values) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPost, actionURL, strings.NewReader(values.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form submission request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	if referer != "" {
+		req.Header.Set("Referer", referer)
+	}
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+
+	if parsed, err := url.Parse(actionURL); err == nil {
+		req.Header.Set("Origin", fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host))
+	}
+
+	return w.client.Do(req)
+}
+
+func applyLoginFormDefaults(values url.Values) {
+	if values.Get("js-available") != "" {
+		values.Set("js-available", "true")
+	}
+	if values.Get("webauthn-available") != "" {
+		values.Set("webauthn-available", "false")
+	}
+	if values.Get("webauthn-platform-available") != "" {
+		values.Set("webauthn-platform-available", "false")
+	}
+	if values.Get("is-brave") != "" {
+		values.Set("is-brave", "false")
+	}
+}
+
+func resolveRelativeURL(base *url.URL, ref string) (string, error) {
+	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") {
+		return ref, nil
+	}
+
+	if base == nil {
+		return "", fmt.Errorf("cannot resolve relative URL %s without base", ref)
+	}
+
+	resolved, err := base.Parse(ref)
+	if err != nil {
+		return "", err
+	}
+
+	return resolved.String(), nil
+}
+
+func extractForm(form *goquery.Selection, base *url.URL) (string, url.Values, error) {
+	action, exists := form.Attr("action")
+	if !exists || action == "" {
+		action = base.String()
+	} else {
+		absoluteAction, err := resolveRelativeURL(base, action)
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to resolve form action: %w", err)
+		}
+		action = absoluteAction
+	}
+
+	values := url.Values{}
+	form.Find("input").Each(func(_ int, s *goquery.Selection) {
+		name, exists := s.Attr("name")
+		if !exists || name == "" {
+			return
 		}
 
-		return nil, nil, fmt.Errorf("login failed with status %d", loginResp.StatusCode)
-	}
-
-	// Step 3: Extract form data
-	doc, err := goquery.NewDocumentFromReader(loginResp.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse login response: %v", err)
-	}
-
-	form := doc.Find("form")
-	if form.Length() == 0 {
-		return nil, nil, fmt.Errorf("no form found in response")
-	}
-
-	formAction, exists := form.Attr("action")
-	if !exists {
-		return nil, nil, fmt.Errorf("no form action found")
-	}
-
-	formData := url.Values{}
-	form.Find("input").Each(func(_ int, s *goquery.Selection) {
-		name, _ := s.Attr("name")
-		value, _ := s.Attr("value")
-		if name != "" && value != "" {
-			formData.Add(name, value)
+		if value, ok := s.Attr("value"); ok {
+			values.Set(name, value)
+		} else {
+			values.Add(name, "")
 		}
 	})
 
-	// Step 4: Submit form and handle redirects
-	formResp, err := w.client.PostForm(formAction, formData)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to submit form: %v", err)
-	}
-	defer formResp.Body.Close()
+	return action, values, nil
+}
 
-	var code string
-	currentResp := formResp
-	for currentResp.StatusCode >= 300 && currentResp.StatusCode < 400 {
-		redirectURL := currentResp.Header.Get("Location")
-		if redirectURL == "" {
-			return nil, nil, fmt.Errorf("no redirect URL found")
-		}
+func (w *WeWorkAuth) followAuthorizationRedirects(initialResp *http.Response, expectedState string) (string, error) {
+	currentResp := initialResp
+	retryCount := 0
 
-		if !strings.HasPrefix(redirectURL, "http") {
-			redirectURL = fmt.Sprintf("https://%s%s", w.config.Domain, redirectURL)
-		}
-
-		if strings.Contains(redirectURL, "code=") {
-			parsedRedirect, err := url.Parse(redirectURL)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to parse redirect URL: %v", err)
+	for {
+		if currentResp.StatusCode >= 300 && currentResp.StatusCode < 400 {
+			location := currentResp.Header.Get("Location")
+			if location == "" {
+				body, _ := io.ReadAll(currentResp.Body)
+				currentResp.Body.Close()
+				return "", fmt.Errorf("authorization redirect missing location: status %d body %s", currentResp.StatusCode, clipBody(body))
 			}
-			code = parsedRedirect.Query().Get("code")
+
+			if code, ok, err := extractCodeFromLocation(location, expectedState); err != nil {
+				currentResp.Body.Close()
+				return "", err
+			} else if ok {
+				currentResp.Body.Close()
+				return code, nil
+			}
+
+			nextURL := location
+			if !strings.HasPrefix(nextURL, "http") {
+				nextURL = fmt.Sprintf("https://%s%s", w.config.Domain, nextURL)
+			}
+
+			nextResp, err := w.client.Get(nextURL)
+			if err != nil {
+				currentResp.Body.Close()
+				return "", fmt.Errorf("failed to follow redirect: %w", err)
+			}
+			currentResp.Body.Close()
+			currentResp = nextResp
+			continue
+		}
+
+		if currentResp.StatusCode == http.StatusTooManyRequests {
+			retryAfter := time.Second * 2
+			if ra := currentResp.Header.Get("Retry-After"); ra != "" {
+				if seconds, err := time.ParseDuration(ra + "s"); err == nil {
+					retryAfter = seconds
+				}
+			}
+
+			if retryCount >= 3 {
+				body, _ := io.ReadAll(currentResp.Body)
+				currentResp.Body.Close()
+				return "", fmt.Errorf("authorization rate limited after retries: %s", clipBody(body))
+			}
+
+			retryCount++
+			_, _ = io.ReadAll(currentResp.Body)
+			currentResp.Body.Close()
+			time.Sleep(retryAfter)
+
+			retryURL := currentResp.Request.URL
+			if retryURL == nil {
+				return "", fmt.Errorf("rate limited without request URL")
+			}
+
+			nextResp, err := w.client.Get(retryURL.String())
+			if err != nil {
+				return "", fmt.Errorf("failed to retry after rate limit: %w", err)
+			}
+			currentResp = nextResp
+			continue
+		}
+
+		if currentResp.StatusCode == http.StatusOK {
+			body, err := io.ReadAll(currentResp.Body)
+			if err != nil {
+				currentResp.Body.Close()
+				return "", fmt.Errorf("failed to read intermediate page: %w", err)
+			}
+			currentResp.Body.Close()
+
+			nextResp, handled, err := w.handleIntermediatePage(body, currentResp.Request.URL)
+			if err != nil {
+				return "", err
+			}
+			if handled {
+				currentResp = nextResp
+				continue
+			}
+
+			return "", fmt.Errorf("authorization did not return a code: status %d body %s", http.StatusOK, clipBody(body))
+		}
+
+		body, _ := io.ReadAll(currentResp.Body)
+		currentResp.Body.Close()
+		return "", fmt.Errorf("authorization did not return a code: status %d body %s", currentResp.StatusCode, clipBody(body))
+	}
+}
+
+func (w *WeWorkAuth) handleIntermediatePage(body []byte, baseURL *url.URL) (*http.Response, bool, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, false, nil
+	}
+
+	type formCandidate struct {
+		selection *goquery.Selection
+		kind      string
+	}
+
+	candidates := make([]formCandidate, 0)
+	doc.Find("form").Each(func(_ int, s *goquery.Selection) {
+		switch {
+		case s.Find("input[name='password']").Length() > 0:
+			candidates = append(candidates, formCandidate{selection: s, kind: "password"})
+		case s.Find("input[name='js-available']").Length() > 0:
+			candidates = append(candidates, formCandidate{selection: s, kind: "detection"})
+		case s.Find("input[name='username']").Length() > 0:
+			candidates = append(candidates, formCandidate{selection: s, kind: "identifier"})
+		}
+	})
+
+	if len(candidates) == 0 {
+		return nil, false, nil
+	}
+
+	var selected formCandidate
+	for _, c := range candidates {
+		if c.kind == "password" {
+			selected = c
 			break
 		}
-
-		currentResp, err = w.client.Get(redirectURL)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to follow redirect: %v", err)
+		if c.kind == "detection" && selected.selection == nil {
+			selected = c
 		}
-		defer currentResp.Body.Close()
+		if c.kind == "identifier" && selected.selection == nil {
+			selected = c
+		}
 	}
 
+	action, values, err := extractForm(selected.selection, baseURL)
+	if err != nil {
+		return nil, false, err
+	}
+
+	switch selected.kind {
+	case "identifier":
+		values.Set("username", w.username)
+	case "password":
+		values.Set("password", w.password)
+	case "detection":
+		applyLoginFormDefaults(values)
+		if values.Get("action") == "" {
+			values.Set("action", "default")
+		}
+	}
+
+	referer := ""
+	if baseURL != nil {
+		referer = baseURL.String()
+	}
+
+	resp, err := w.submitForm(action, referer, values)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return resp, true, nil
+}
+
+func extractCodeFromLocation(location, expectedState string) (string, bool, error) {
+	parsed, err := url.Parse(location)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to parse redirect URL: %w", err)
+	}
+
+	query := parsed.Query()
+	code := query.Get("code")
 	if code == "" {
-		return nil, nil, fmt.Errorf("no code found in redirects")
+		return "", false, nil
 	}
 
-	// Step 5: Exchange code for tokens
+	if expectedState != "" && query.Get("state") != expectedState {
+		return "", false, fmt.Errorf("state mismatch in authorization response")
+	}
+
+	return code, true, nil
+}
+
+func (w *WeWorkAuth) exchangeCodeForTokens(code string) (*OAuthTokenResponse, error) {
 	tokenData := map[string]string{
 		"client_id":     w.config.ClientID,
 		"code_verifier": w.codeVerifier,
@@ -327,31 +640,42 @@ func (w *WeWorkAuth) Authenticate() (*LoginByAuth0TokenResponse, *OAuthTokenResp
 		"redirect_uri":  w.config.RedirectURI,
 	}
 
-	tokenBody, err := json.Marshal(tokenData)
+	body, err := json.Marshal(tokenData)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal token data: %v", err)
+		return nil, fmt.Errorf("failed to marshal token payload: %w", err)
 	}
 
-	tokenReq, err := http.NewRequest("POST", fmt.Sprintf("https://%s/oauth/token", w.config.Domain), bytes.NewBuffer(tokenBody))
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("https://%s/oauth/token", w.config.Domain), bytes.NewBuffer(body))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create token request: %v", err)
+		return nil, fmt.Errorf("failed to create token request: %w", err)
 	}
 
-	tokenReq.Header.Set("Content-Type", "application/json")
-	tokenResp, err := w.client.Do(tokenReq)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := w.client.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to exchange code for tokens: %v", err)
+		return nil, fmt.Errorf("failed to exchange authorization code: %w", err)
 	}
-	defer tokenResp.Body.Close()
+	defer resp.Body.Close()
 
 	var tokens OAuthTokenResponse
-	if err := json.NewDecoder(tokenResp.Body).Decode(&tokens); err != nil {
-		return nil, nil, fmt.Errorf("failed to decode token response: %v", err)
+	if err := json.NewDecoder(resp.Body).Decode(&tokens); err != nil {
+		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
-	// Step 6: Login to WeWork backend
-	res, err := w.loginToWeWork(&tokens)
-	return res, &tokens, err
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token exchange failed with status %d", resp.StatusCode)
+	}
+
+	return &tokens, nil
+}
+
+func clipBody(body []byte) string {
+	const limit = 512
+	if len(body) > limit {
+		return string(body[:limit]) + "..."
+	}
+	return string(body)
 }
 
 func (w *WeWorkAuth) loginToWeWork(tokens *OAuthTokenResponse) (*LoginByAuth0TokenResponse, error) {
@@ -378,7 +702,7 @@ func (w *WeWorkAuth) loginToWeWork(tokens *OAuthTokenResponse) (*LoginByAuth0Tok
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Request-Source", "com.wework.ondemand/WorkplaceOne/Prod/iOS/2.68.0(18.2)")
+	req.Header.Set("Request-Source", "com.wework.ondemand/WorkplaceOne/Prod/iOS/2.71.0(26.1)")
 	req.Header.Set("User-Agent", "Mobile Safari 16.1")
 
 	resp, err := w.client.Do(req)
