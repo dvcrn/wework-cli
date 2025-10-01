@@ -8,8 +8,28 @@ import (
 	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/tzdate"
 	"github.com/dvcrn/wework-cli/pkg/wework"
+	"github.com/sahilm/fuzzy"
 	"github.com/spf13/cobra"
 )
+
+func findLocationByFuzzyName(name string, locations []wework.GeoLocation) (string, error) {
+	var names []string
+	for _, loc := range locations {
+		names = append(names, loc.Name)
+	}
+	matches := fuzzy.Find(name, names)
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no location found matching '%s'", name)
+	}
+	if len(matches) > 1 {
+		var matchNames []string
+		for _, m := range matches {
+			matchNames = append(matchNames, m.Str)
+		}
+		return "", fmt.Errorf("multiple locations found: %s", strings.Join(matchNames, ", "))
+	}
+	return locations[matches[0].Index].UUID, nil
+}
 
 func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 	var locationUUID, city, name, date string
@@ -27,7 +47,6 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				return fmt.Errorf("--location-uuid OR (--city + --name) is required for booking")
 			}
 
-			var availableLocations []string
 			var targetLocationUUID = locationUUID
 
 			// Search for location if needed
@@ -39,12 +58,9 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 						return nil, fmt.Errorf("failed to get locations: %v", err)
 					}
 
-					var foundUUID string
-					for _, location := range res.LocationsByGeo {
-						availableLocations = append(availableLocations, location.Name)
-						if name == location.Name {
-							foundUUID = location.UUID
-						}
+					foundUUID, err := findLocationByFuzzyName(name, res.LocationsByGeo)
+					if err != nil {
+						return nil, err
 					}
 					return foundUUID, nil
 				})
@@ -54,11 +70,6 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				}
 
 				targetLocationUUID = result.(string)
-			}
-
-			if targetLocationUUID == "" {
-				return fmt.Errorf("could not find any space with the name '%s'. Available locations for city %s are: %s",
-					name, city, strings.Join(availableLocations, ", "))
 			}
 
 			// Parse dates
