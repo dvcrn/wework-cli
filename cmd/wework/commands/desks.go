@@ -1,11 +1,11 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/tzdate"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
@@ -26,68 +26,47 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 				return fmt.Errorf("--location-uuid or --city is required for desks lookup")
 			}
 
+			jsonOut, _ := cmd.Flags().GetBool("json")
+
+			// Find location UUIDs and timezone
 			var locationUUIDs []string
 			var timezone string
+
 			if city != "" {
-				type locationSearchResult struct {
-					UUIDs    []string
-					TimeZone string
+				cities, err := ww.GetCities()
+				if err != nil {
+					return fmt.Errorf("failed to get cities: %v", err)
 				}
-				// Use spinner for location search
-				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting locations for matched cities"), func() (interface{}, error) {
-					cities, err := ww.GetCities()
-					if err != nil {
-						return nil, fmt.Errorf("failed to get cities: %v", err)
-					}
-
-					matchedCities, err := wework.FindCityByFuzzyName(city, cities)
-					if err != nil {
-						return nil, err
-					}
-
-					var allLocations []wework.GeoLocation
-					for _, matchedCity := range matchedCities {
-						res, err := ww.GetLocationsByGeo(matchedCity.Name)
-						if err != nil {
-							return nil, fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
-						}
-						allLocations = append(allLocations, res.LocationsByGeo...)
-					}
-
-					if len(allLocations) == 0 {
-						return nil, fmt.Errorf("no locations found in matched cities")
-					}
-
-					var uuids []string
-					for _, location := range allLocations {
-						uuids = append(uuids, location.UUID)
-					}
-
-					// Return both uuids and the timezone of the first location
-					return &locationSearchResult{
-						UUIDs:    uuids,
-						TimeZone: allLocations[0].TimeZone,
-					}, nil
-				})
+				matchedCities, err := wework.FindCityByFuzzyName(city, cities)
 				if err != nil {
 					return err
 				}
-				searchResult := result.(*locationSearchResult)
-				locationUUIDs = searchResult.UUIDs
-				timezone = searchResult.TimeZone
+				var allLocations []wework.GeoLocation
+				for _, matchedCity := range matchedCities {
+					res, err := ww.GetLocationsByGeo(matchedCity.Name)
+					if err != nil {
+						return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+					}
+					allLocations = append(allLocations, res.LocationsByGeo...)
+				}
+				if len(allLocations) == 0 {
+					return fmt.Errorf("no locations found in matched cities")
+				}
+				for _, location := range allLocations {
+					locationUUIDs = append(locationUUIDs, location.UUID)
+				}
+				timezone = allLocations[0].TimeZone
 			} else {
 				locationUUIDs = strings.Split(locationUUID, ",")
-				result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting location details for %s", locationUUIDs[0]), func() (interface{}, error) {
-					return ww.GetSpacesByUUIDs([]string{locationUUIDs[0]})
-				})
+				// Get timezone from first location
+				resp, err := ww.GetSpacesByUUIDs([]string{locationUUIDs[0]})
 				if err != nil {
 					return fmt.Errorf("failed to get location details: %w", err)
 				}
-				response := result.(*wework.SharedWorkspaceResponse)
-				if len(response.Response.Workspaces) == 0 {
+				if len(resp.Response.Workspaces) == 0 {
 					return fmt.Errorf("no spaces found for location UUID %s", locationUUIDs[0])
 				}
-				timezone = response.Response.Workspaces[0].Location.TimeZone
+				timezone = resp.Response.Workspaces[0].Location.TimeZone
 			}
 
 			if timezone == "" {
@@ -99,32 +78,54 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 				return err
 			}
 
-			// Get available spaces with spinner
-			result, err := spinner.RunWithSpinner(fmt.Sprintf("Getting available desks for %s", dateParsed.Format("2006-01-02")), func() (interface{}, error) {
-				return ww.GetAvailableSpaces(dateParsed, locationUUIDs)
-			})
+			// Get available spaces
+			resp, err := ww.GetAvailableSpaces(dateParsed, locationUUIDs)
 			if err != nil {
 				return fmt.Errorf("failed to get available spaces: %v", err)
 			}
-			response := result.(*wework.SharedWorkspaceResponse)
 
-			if len(response.Response.Workspaces) == 0 {
-				return fmt.Errorf("no spaces found, or not available for the given date")
-			}
-
-			fmt.Printf("%-30s%-40s%-40s%s\n", "Location", "Reservable ID", "Location ID", "Available")
-			fmt.Println(strings.Repeat("-", 120))
-			for _, space := range response.Response.Workspaces {
-				name := space.Location.Name
-				if len(name) > 28 {
-					name = name[:28]
+			// Output results
+			if jsonOut {
+				type row struct {
+					Location     string `json:"location"`
+					ReservableID string `json:"reservableId"`
+					LocationID   string `json:"locationId"`
+					Available    int    `json:"available"`
 				}
-				fmt.Printf("%-30s%-40s%-40s%d\n",
-					name,
-					space.UUID,
-					space.Location.UUID,
-					space.Seat.Available)
+				rows := make([]row, 0, len(resp.Response.Workspaces))
+				for _, space := range resp.Response.Workspaces {
+					rows = append(rows, row{
+						Location:     space.Location.Name,
+						ReservableID: space.UUID,
+						LocationID:   space.Location.UUID,
+						Available:    space.Seat.Available,
+					})
+				}
+				b, err := json.MarshalIndent(rows, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %v", err)
+				}
+				fmt.Println(string(b))
+			} else {
+				if len(resp.Response.Workspaces) == 0 {
+					return fmt.Errorf("no spaces found, or not available for the given date")
+				}
+
+				fmt.Printf("%-30s%-40s%-40s%s\n", "Location", "Reservable ID", "Location ID", "Available")
+				fmt.Println(strings.Repeat("-", 120))
+				for _, space := range resp.Response.Workspaces {
+					name := space.Location.Name
+					if len(name) > 28 {
+						name = name[:28]
+					}
+					fmt.Printf("%-30s%-40s%-40s%d\n",
+						name,
+						space.UUID,
+						space.Location.UUID,
+						space.Seat.Available)
+				}
 			}
+
 			return nil
 		},
 	}

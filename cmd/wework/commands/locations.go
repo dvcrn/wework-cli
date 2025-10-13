@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -22,6 +23,14 @@ func NewLocationsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Com
 			res, err := ww.GetLocationsByGeo(city)
 			if err != nil {
 				return fmt.Errorf("failed to get locations: %v", err)
+			}
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				b, err := json.MarshalIndent(res.LocationsByGeo, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %v", err)
+				}
+				fmt.Println(string(b))
+				return nil
 			}
 			fmt.Printf("%-30s%-40s%-15s%s\n", "Location", "UUID", "Latitude", "Longitude")
 			fmt.Println(strings.Repeat("-", 95))

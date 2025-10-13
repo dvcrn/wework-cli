@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/dvcrn/wework-cli/pkg/wework"
@@ -22,6 +23,29 @@ func NewMeCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("failed to get user profile: %v", err)
 			}
+
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				if !includeBootstrap {
+					b, err := json.MarshalIndent(userResponse, "", "  ")
+					if err != nil {
+						return fmt.Errorf("failed to marshal JSON: %v", err)
+					}
+					fmt.Println(string(b))
+					return nil
+				}
+				bootstrap, err := ww.GetBootstrap()
+				if err != nil {
+					return fmt.Errorf("failed to get bootstrap: %v", err)
+				}
+				payload := map[string]interface{}{"userProfile": userResponse, "bootstrap": bootstrap}
+				b, err := json.MarshalIndent(payload, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %v", err)
+				}
+				fmt.Println(string(b))
+				return nil
+			}
+
 			fmt.Printf("User Profile:\n")
 			fmt.Printf("  UUID: %s\n", userResponse.UUID)
 			fmt.Printf("  Name: %s\n", userResponse.Name)

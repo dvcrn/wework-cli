@@ -19,6 +19,7 @@ var (
 	date             string
 	calendarPath     string
 	includeBootstrap bool
+	outputJSON       bool
 )
 
 func main() {
@@ -30,6 +31,7 @@ func main() {
 
 	rootCmd.PersistentFlags().StringVar(&username, "username", os.Getenv("WEWORK_USERNAME"), "WeWork username")
 	rootCmd.PersistentFlags().StringVar(&password, "password", os.Getenv("WEWORK_PASSWORD"), "WeWork password")
+	rootCmd.PersistentFlags().BoolVar(&outputJSON, "json", false, "Output JSON instead of text (disables spinners)")
 
 	rootCmd.AddCommand(
 		commands.NewLocationsCommand(authenticate),
@@ -53,7 +55,20 @@ func authenticate() (*wework.WeWork, error) {
 		return nil, fmt.Errorf("username and password are required. Set WEWORK_USERNAME and WEWORK_PASSWORD environment variables or use --username and --password flags")
 	}
 
-	// Run authentication with spinner
+	// In JSON mode, bypass spinner to keep stdout clean
+	if outputJSON {
+		weworkAuth, err := wework.NewWeWorkAuth(username, password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create WeWork auth: %v", err)
+		}
+		loginResult, _, err := weworkAuth.Authenticate()
+		if err != nil {
+			return nil, fmt.Errorf("authentication failed: %v", err)
+		}
+		return wework.NewWeWork(loginResult.A0token), nil
+	}
+
+	// Run authentication with spinner in text mode
 	result, err := spinner.RunWithSpinner("Authenticating with WeWork", func() (interface{}, error) {
 		weworkAuth, err := wework.NewWeWorkAuth(username, password)
 		if err != nil {

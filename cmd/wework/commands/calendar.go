@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/dvcrn/wework-cli/pkg/wework"
@@ -21,6 +22,14 @@ func NewCalendarCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 			cal := wework.NewWeWorkCalendar(ww)
 			if err := cal.GenerateCalendar(calendarPath); err != nil {
 				return fmt.Errorf("failed to generate calendar: %v", err)
+			}
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				b, err := json.Marshal(map[string]string{"calendarPath": calendarPath})
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %v", err)
+				}
+				fmt.Println(string(b))
+				return nil
 			}
 			fmt.Printf("Calendar generated at %s\n", calendarPath)
 			return nil

@@ -13,7 +13,6 @@ func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 	var city string
 	var name string
 	var amenitiesOnly bool
-	var outputJSON bool
 
 	cmd := &cobra.Command{
 		Use:   "info",
@@ -64,7 +63,7 @@ func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				return fmt.Errorf("failed to get location information: %v", err)
 			}
 
-			if outputJSON {
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
 				jsonData, err := json.MarshalIndent(res, "", "  ")
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON: %v", err)
@@ -116,7 +115,6 @@ func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 	cmd.Flags().StringVar(&city, "city", "", "City name (used with --name to find location)")
 	cmd.Flags().StringVar(&name, "name", "", "Location name (used with --city to find location)")
 	cmd.Flags().BoolVar(&amenitiesOnly, "amenities-only", false, "Only fetch amenities information")
-	cmd.Flags().BoolVar(&outputJSON, "json", false, "Output raw JSON response")
 
 	return cmd
 }

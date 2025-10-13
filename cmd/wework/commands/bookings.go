@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -69,6 +70,15 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 				if err != nil {
 					return fmt.Errorf("failed to get upcoming bookings: %v", err)
 				}
+			}
+
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				b, err := json.MarshalIndent(bookings, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %v", err)
+				}
+				fmt.Println(string(b))
+				return nil
 			}
 
 			if len(bookings) == 0 {
