@@ -73,7 +73,34 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 			}
 
 			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
-				b, err := json.MarshalIndent(bookings, "", "  ")
+				type compactBooking struct {
+					UUID         string `json:"uuid"`
+					Date         string `json:"date"`
+					StartTime    string `json:"startTime"`
+					EndTime      string `json:"endTime"`
+					LocationName string `json:"locationName"`
+					LocationUUID string `json:"locationUUID"`
+					Address      string `json:"address"`
+					City         string `json:"city"`
+					Credits      string `json:"credits"`
+				}
+
+				var compact []compactBooking
+				for _, booking := range bookings {
+					compact = append(compact, compactBooking{
+						UUID:         booking.UUID,
+						Date:         booking.StartsAt.Time.Format("2006-01-02"),
+						StartTime:    booking.StartsAt.Time.Format("15:04"),
+						EndTime:      booking.EndsAt.Time.Format("15:04"),
+						LocationName: booking.Reservable.Location.Name,
+						LocationUUID: booking.Reservable.Location.UUID,
+						Address:      booking.Reservable.Location.Address.Line1,
+						City:         booking.Reservable.Location.Address.City,
+						Credits:      booking.CreditOrder.Price,
+					})
+				}
+
+				b, err := json.MarshalIndent(compact, "", "  ")
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON: %v", err)
 				}
