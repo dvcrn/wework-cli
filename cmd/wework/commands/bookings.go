@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -27,48 +28,108 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 			var bookings []*wework.Booking
 			var bookingType string
 
-			if past {
-				bookingType = "past"
-
-				// Check if custom date range is provided
-				if startDate != "" || endDate != "" {
-					var start, end time.Time
-
-					if startDate != "" {
-						start, err = time.Parse("2006-01-02", startDate)
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				// JSON mode: keep original flow without spinner
+				if past {
+					bookingType = "past"
+					if startDate != "" || endDate != "" {
+						var start, end time.Time
+						if startDate != "" {
+							start, err = time.Parse("2006-01-02", startDate)
+							if err != nil {
+								return fmt.Errorf("invalid start date format: %v", err)
+							}
+						} else {
+							start = time.Now().AddDate(0, 0, -30)
+						}
+						if endDate != "" {
+							end, err = time.Parse("2006-01-02", endDate)
+							if err != nil {
+								return fmt.Errorf("invalid end date format: %v", err)
+							}
+						} else {
+							end = time.Now()
+						}
+						bookings, err = ww.GetPastBookingsWithDates(start, end)
 						if err != nil {
-							return fmt.Errorf("invalid start date format: %v", err)
+							return fmt.Errorf("failed to get past bookings: %v", err)
 						}
 					} else {
-						// Default to 30 days ago
-						start = time.Now().AddDate(0, 0, -30)
-					}
-
-					if endDate != "" {
-						end, err = time.Parse("2006-01-02", endDate)
+						bookings, err = ww.GetPastBookings()
 						if err != nil {
-							return fmt.Errorf("invalid end date format: %v", err)
+							return fmt.Errorf("failed to get past bookings: %v", err)
 						}
-					} else {
-						// Default to today
-						end = time.Now()
-					}
-
-					bookings, err = ww.GetPastBookingsWithDates(start, end)
-					if err != nil {
-						return fmt.Errorf("failed to get past bookings: %v", err)
 					}
 				} else {
-					bookings, err = ww.GetPastBookings()
+					bookingType = "upcoming"
+					bookings, err = ww.GetUpcomingBookings()
 					if err != nil {
-						return fmt.Errorf("failed to get past bookings: %v", err)
+						return fmt.Errorf("failed to get upcoming bookings: %v", err)
 					}
 				}
 			} else {
-				bookings, err = ww.GetUpcomingBookings()
-				bookingType = "upcoming"
-				if err != nil {
-					return fmt.Errorf("failed to get upcoming bookings: %v", err)
+				// Text mode: use spinner for fetching bookings
+				if past {
+					bookingType = "past"
+					if startDate != "" || endDate != "" {
+						var start, end time.Time
+						if startDate != "" {
+							start, err = time.Parse("2006-01-02", startDate)
+							if err != nil {
+								return fmt.Errorf("invalid start date format: %v", err)
+							}
+						} else {
+							start = time.Now().AddDate(0, 0, -30)
+						}
+						if endDate != "" {
+							end, err = time.Parse("2006-01-02", endDate)
+							if err != nil {
+								return fmt.Errorf("invalid end date format: %v", err)
+							}
+						} else {
+							end = time.Now()
+						}
+
+						if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+							cs.Update("Fetching past bookings…")
+							r, err := ww.GetPastBookingsWithDates(start, end)
+							if err != nil {
+								return fmt.Errorf("failed to get past bookings: %v", err)
+							}
+							bookings = r
+							cs.Success("Fetched past bookings")
+							return nil
+						}); err != nil {
+							return err
+						}
+					} else {
+						if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+							cs.Update("Fetching past bookings…")
+							r, err := ww.GetPastBookings()
+							if err != nil {
+								return fmt.Errorf("failed to get past bookings: %v", err)
+							}
+							bookings = r
+							cs.Success("Fetched past bookings")
+							return nil
+						}); err != nil {
+							return err
+						}
+					}
+				} else {
+					bookingType = "upcoming"
+					if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+						cs.Update("Fetching upcoming bookings…")
+						r, err := ww.GetUpcomingBookings()
+						if err != nil {
+							return fmt.Errorf("failed to get upcoming bookings: %v", err)
+						}
+						bookings = r
+						cs.Success("Fetched upcoming bookings")
+						return nil
+					}); err != nil {
+						return err
+					}
 				}
 			}
 

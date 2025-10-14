@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -24,43 +25,83 @@ func NewInfoCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				return err
 			}
 
-			// If locationUUID is not provided, try to find it using city and name
-			if locationUUID == "" {
-				if city == "" || name == "" {
-					return fmt.Errorf("either --location-uuid or both --city and --name must be provided")
-				}
-
-				// Get cities and fuzzy match
-				cities, err := ww.GetCities()
-				if err != nil {
-					return fmt.Errorf("failed to get cities: %v", err)
-				}
-
-				matchedCities, err := wework.FindCityByFuzzyName(city, cities)
-				if err != nil {
-					return err
-				}
-
-				// Get locations from all matched cities
-				var allLocations []wework.GeoLocation
-				for _, matchedCity := range matchedCities {
-					res, err := ww.GetLocationsByGeo(matchedCity.Name)
-					if err != nil {
-						return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+			var res *wework.LocationFeaturesResponse
+			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				// JSON: no spinner
+				if locationUUID == "" {
+					if city == "" || name == "" {
+						return fmt.Errorf("either --location-uuid or both --city and --name must be provided")
 					}
-					allLocations = append(allLocations, res.LocationsByGeo...)
+					cities, err := ww.GetCities()
+					if err != nil {
+						return fmt.Errorf("failed to get cities: %v", err)
+					}
+					matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+					if err != nil {
+						return err
+					}
+					var allLocations []wework.GeoLocation
+					for _, matchedCity := range matchedCities {
+						r, err := ww.GetLocationsByGeo(matchedCity.Name)
+						if err != nil {
+							return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+						}
+						allLocations = append(allLocations, r.LocationsByGeo...)
+					}
+					var err2 error
+					locationUUID, err2 = FindLocationByFuzzyName(name, allLocations)
+					if err2 != nil {
+						return err2
+					}
 				}
-
-				// Find the location by fuzzy name
-				locationUUID, err = FindLocationByFuzzyName(name, allLocations)
+				r, err := ww.GetLocationFeatures(locationUUID, amenitiesOnly)
 				if err != nil {
+					return fmt.Errorf("failed to get location information: %v", err)
+				}
+				res = r
+			} else {
+				// Text: use spinner across resolution and fetch
+				if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+					if locationUUID == "" {
+						if city == "" || name == "" {
+							return fmt.Errorf("either --location-uuid or both --city and --name must be provided")
+						}
+						cs.Update("Fetching cities…")
+						cities, err := ww.GetCities()
+						if err != nil {
+							return fmt.Errorf("failed to get cities: %v", err)
+						}
+						cs.Update("Matching city…")
+						matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+						if err != nil {
+							return err
+						}
+						var allLocations []wework.GeoLocation
+						for _, matchedCity := range matchedCities {
+							cs.Update(fmt.Sprintf("Fetching locations for %s…", matchedCity.Name))
+							r, err := ww.GetLocationsByGeo(matchedCity.Name)
+							if err != nil {
+								return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+							}
+							allLocations = append(allLocations, r.LocationsByGeo...)
+						}
+						var err2 error
+						locationUUID, err2 = FindLocationByFuzzyName(name, allLocations)
+						if err2 != nil {
+							return err2
+						}
+					}
+					cs.Update("Fetching location features…")
+					r, err := ww.GetLocationFeatures(locationUUID, amenitiesOnly)
+					if err != nil {
+						return fmt.Errorf("failed to get location information: %v", err)
+					}
+					res = r
+					cs.Success("Information retrieved")
+					return nil
+				}); err != nil {
 					return err
 				}
-			}
-
-			res, err := ww.GetLocationFeatures(locationUUID, amenitiesOnly)
-			if err != nil {
-				return fmt.Errorf("failed to get location information: %v", err)
 			}
 
 			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {

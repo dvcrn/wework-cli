@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/tzdate"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
@@ -28,60 +29,131 @@ func NewDesksCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command
 
 			jsonOut, _ := cmd.Flags().GetBool("json")
 
-			// Find location UUIDs and timezone
-			var locationUUIDs []string
-			var timezone string
+			var resp *wework.SharedWorkspaceResponse
+			if jsonOut {
+				// Original logic without spinner for JSON mode
+				// Find location UUIDs and timezone
+				var locationUUIDs []string
+				var timezone string
 
-			if city != "" {
-				cities, err := ww.GetCities()
-				if err != nil {
-					return fmt.Errorf("failed to get cities: %v", err)
+				if city != "" {
+					cities, err := ww.GetCities()
+					if err != nil {
+						return fmt.Errorf("failed to get cities: %v", err)
+					}
+					matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+					if err != nil {
+						return err
+					}
+					var allLocations []wework.GeoLocation
+					for _, matchedCity := range matchedCities {
+						res, err := ww.GetLocationsByGeo(matchedCity.Name)
+						if err != nil {
+							return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+						}
+						allLocations = append(allLocations, res.LocationsByGeo...)
+					}
+					if len(allLocations) == 0 {
+						return fmt.Errorf("no locations found in matched cities")
+					}
+					for _, location := range allLocations {
+						locationUUIDs = append(locationUUIDs, location.UUID)
+					}
+					timezone = allLocations[0].TimeZone
+				} else {
+					locationUUIDs = strings.Split(locationUUID, ",")
+					// Get timezone from first location
+					locResp, err := ww.GetSpacesByUUIDs([]string{locationUUIDs[0]})
+					if err != nil {
+						return fmt.Errorf("failed to get location details: %w", err)
+					}
+					if len(locResp.Response.Workspaces) == 0 {
+						return fmt.Errorf("no spaces found for location UUID %s", locationUUIDs[0])
+					}
+					timezone = locResp.Response.Workspaces[0].Location.TimeZone
 				}
-				matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+
+				if timezone == "" {
+					return fmt.Errorf("could not determine timezone for desks lookup")
+				}
+
+				dateParsed, err := tzdate.ParseInTimezone("2006-01-02", date, "Local")
 				if err != nil {
 					return err
 				}
-				var allLocations []wework.GeoLocation
-				for _, matchedCity := range matchedCities {
-					res, err := ww.GetLocationsByGeo(matchedCity.Name)
-					if err != nil {
-						return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
-					}
-					allLocations = append(allLocations, res.LocationsByGeo...)
-				}
-				if len(allLocations) == 0 {
-					return fmt.Errorf("no locations found in matched cities")
-				}
-				for _, location := range allLocations {
-					locationUUIDs = append(locationUUIDs, location.UUID)
-				}
-				timezone = allLocations[0].TimeZone
-			} else {
-				locationUUIDs = strings.Split(locationUUID, ",")
-				// Get timezone from first location
-				resp, err := ww.GetSpacesByUUIDs([]string{locationUUIDs[0]})
+
+				// Get available spaces
+				r, err := ww.GetAvailableSpaces(dateParsed, locationUUIDs)
 				if err != nil {
-					return fmt.Errorf("failed to get location details: %w", err)
+					return fmt.Errorf("failed to get available spaces: %v", err)
 				}
-				if len(resp.Response.Workspaces) == 0 {
-					return fmt.Errorf("no spaces found for location UUID %s", locationUUIDs[0])
+				resp = r
+			} else {
+				// Text mode: use spinner to show progress across steps
+				var locationUUIDs []string
+				var timezone string
+
+				if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+					if city != "" {
+						cs.Update("Fetching cities…")
+						cities, err := ww.GetCities()
+						if err != nil {
+							return fmt.Errorf("failed to get cities: %v", err)
+						}
+						cs.Update("Matching city…")
+						matchedCities, err := wework.FindCityByFuzzyName(city, cities)
+						if err != nil {
+							return err
+						}
+						var allLocations []wework.GeoLocation
+						for _, matchedCity := range matchedCities {
+							cs.Update(fmt.Sprintf("Fetching locations for %s…", matchedCity.Name))
+							res, err := ww.GetLocationsByGeo(matchedCity.Name)
+							if err != nil {
+								return fmt.Errorf("failed to get locations for %s: %v", matchedCity.Name, err)
+							}
+							allLocations = append(allLocations, res.LocationsByGeo...)
+						}
+						if len(allLocations) == 0 {
+							return fmt.Errorf("no locations found in matched cities")
+						}
+						for _, location := range allLocations {
+							locationUUIDs = append(locationUUIDs, location.UUID)
+						}
+						timezone = allLocations[0].TimeZone
+					} else {
+						locationUUIDs = strings.Split(locationUUID, ",")
+						cs.Update("Fetching location details…")
+						locResp, err := ww.GetSpacesByUUIDs([]string{locationUUIDs[0]})
+						if err != nil {
+							return fmt.Errorf("failed to get location details: %w", err)
+						}
+						if len(locResp.Response.Workspaces) == 0 {
+							return fmt.Errorf("no spaces found for location UUID %s", locationUUIDs[0])
+						}
+						timezone = locResp.Response.Workspaces[0].Location.TimeZone
+					}
+
+					if timezone == "" {
+						return fmt.Errorf("could not determine timezone for desks lookup")
+					}
+
+					dateParsed, err := tzdate.ParseInTimezone("2006-01-02", date, "Local")
+					if err != nil {
+						return err
+					}
+
+					cs.Update("Fetching available spaces…")
+					r, err := ww.GetAvailableSpaces(dateParsed, locationUUIDs)
+					if err != nil {
+						return fmt.Errorf("failed to get available spaces: %v", err)
+					}
+					resp = r
+					cs.Success("Fetched available spaces")
+					return nil
+				}); err != nil {
+					return err
 				}
-				timezone = resp.Response.Workspaces[0].Location.TimeZone
-			}
-
-			if timezone == "" {
-				return fmt.Errorf("could not determine timezone for desks lookup")
-			}
-
-			dateParsed, err := tzdate.ParseInTimezone("2006-01-02", date, "Local")
-			if err != nil {
-				return err
-			}
-
-			// Get available spaces
-			resp, err := ww.GetAvailableSpaces(dateParsed, locationUUIDs)
-			if err != nil {
-				return fmt.Errorf("failed to get available spaces: %v", err)
 			}
 
 			// Output results

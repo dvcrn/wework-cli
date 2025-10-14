@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -19,12 +20,15 @@ func NewMeCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			userResponse, err := ww.GetUserProfile()
-			if err != nil {
-				return fmt.Errorf("failed to get user profile: %v", err)
-			}
+			var userResponse *wework.UserProfileResponse
 
 			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				// JSON: no spinner
+				var err error
+				userResponse, err = ww.GetUserProfile()
+				if err != nil {
+					return fmt.Errorf("failed to get user profile: %v", err)
+				}
 				if !includeBootstrap {
 					b, err := json.MarshalIndent(userResponse, "", "  ")
 					if err != nil {
@@ -44,6 +48,28 @@ func NewMeCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 				}
 				fmt.Println(string(b))
 				return nil
+			}
+			// Text: use spinner for fetching profile (and bootstrap optionally)
+			var bootstrap *wework.BootstrapResponse
+			if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+				cs.Update("Fetching user profile…")
+				r, err := ww.GetUserProfile()
+				if err != nil {
+					return fmt.Errorf("failed to get user profile: %v", err)
+				}
+				userResponse = r
+				if includeBootstrap {
+					cs.Update("Fetching bootstrap data…")
+					b, err := ww.GetBootstrap()
+					if err != nil {
+						return fmt.Errorf("failed to get bootstrap: %v", err)
+					}
+					bootstrap = b
+				}
+				cs.Success("Profile retrieved")
+				return nil
+			}); err != nil {
+				return err
 			}
 
 			fmt.Printf("User Profile:\n")
@@ -72,10 +98,6 @@ func NewMeCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 			}
 			if !includeBootstrap {
 				return nil
-			}
-			bootstrap, err := ww.GetBootstrap()
-			if err != nil {
-				return fmt.Errorf("failed to get bootstrap: %v", err)
 			}
 			fmt.Printf("\nBootstrap Data:\n")
 			fmt.Printf("  Menu Security Data:\n")

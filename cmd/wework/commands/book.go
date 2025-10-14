@@ -51,9 +51,27 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 			jsonOut, _ := cmd.Flags().GetBool("json")
 
 			// Find target location UUID
-			targetLocationUUID, err := resolveLocationUUID(ww, city, name, locationUUID)
-			if err != nil {
-				return err
+			var targetLocationUUID string
+			if jsonOut {
+				// JSON: resolve without spinner
+				t, err := resolveLocationUUID(ww, city, name, locationUUID)
+				if err != nil {
+					return err
+				}
+				targetLocationUUID = t
+			} else {
+				if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+					cs.Update("Resolving location…")
+					t, err := resolveLocationUUID(ww, city, name, locationUUID)
+					if err != nil {
+						return err
+					}
+					targetLocationUUID = t
+					cs.Success("Location resolved")
+					return nil
+				}); err != nil {
+					return err
+				}
 			}
 
 			// Parse dates

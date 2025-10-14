@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dvcrn/wework-cli/pkg/spinner"
 	"github.com/dvcrn/wework-cli/pkg/wework"
 	"github.com/spf13/cobra"
 )
@@ -20,11 +21,14 @@ func NewLocationsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Com
 			if err != nil {
 				return err
 			}
-			res, err := ww.GetLocationsByGeo(city)
-			if err != nil {
-				return fmt.Errorf("failed to get locations: %v", err)
-			}
+			var res *wework.LocationsByGeoResponse
 			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				// JSON: no spinner
+				r, err := ww.GetLocationsByGeo(city)
+				if err != nil {
+					return fmt.Errorf("failed to get locations: %v", err)
+				}
+				res = r
 				b, err := json.MarshalIndent(res.LocationsByGeo, "", "  ")
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON: %v", err)
@@ -32,6 +36,22 @@ func NewLocationsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Com
 				fmt.Println(string(b))
 				return nil
 			}
+
+			// Text: use spinner for the network call
+			if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
+				cs.Update(fmt.Sprintf("Fetching locations for %s…", city))
+				r, err := ww.GetLocationsByGeo(city)
+				if err != nil {
+					return fmt.Errorf("failed to get locations: %v", err)
+				}
+				res = r
+				cs.Success("Locations fetched")
+				return nil
+			}); err != nil {
+				return err
+			}
+
+			// Output table
 			fmt.Printf("%-30s%-40s%-15s%s\n", "Location", "UUID", "Latitude", "Longitude")
 			fmt.Println(strings.Repeat("-", 95))
 			for _, location := range res.LocationsByGeo {
