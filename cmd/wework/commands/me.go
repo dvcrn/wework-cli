@@ -50,7 +50,7 @@ func NewMeCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 				return nil
 			}
 			// Text: use spinner for fetching profile (and bootstrap optionally)
-			var bootstrap *wework.BootstrapResponse
+			var bootstrap *wework.AppBootstrapResponse
 			if err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
 				cs.Update("Fetching user profile…")
 				r, err := ww.GetUserProfile()
