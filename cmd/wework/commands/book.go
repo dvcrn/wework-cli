@@ -96,80 +96,94 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 				dates = append(dates, parsed)
 			}
 
-			// Data structure for results
-			type resultRow struct {
-				Date          string                  `json:"date"`
-				SpaceUUID     string                  `json:"spaceUUID"`
-				LocationUUID  string                  `json:"locationUUID"`
-				LocationName  string                  `json:"locationName"`
-				BookingStatus *wework.BookingResponse `json:"booking,omitempty"`
-				Error         string                  `json:"error,omitempty"`
-			}
-			var results []resultRow
-
-			// Process each date
-			for _, bookingDate := range dates {
-				row := resultRow{Date: bookingDate.Format("2006-01-02")}
-
-				spaces, err := ww.GetAvailableSpaces(bookingDate, []string{targetLocationUUID})
-				if err != nil {
-					row.Error = fmt.Sprintf("error getting spaces: %v", err)
-					results = append(results, row)
-					continue
-				}
-
-				if len(spaces.Response.Workspaces) == 0 {
-					row.Error = "no spaces found"
-					results = append(results, row)
-					continue
-				}
-
-				if len(spaces.Response.Workspaces) > 1 {
-					row.Error = "multiple spaces found, please specify a specific space"
-					results = append(results, row)
-					continue
-				}
-
-				space := spaces.Response.Workspaces[0]
-				row.SpaceUUID = space.UUID
-				row.LocationUUID = space.Location.UUID
-				row.LocationName = space.Location.Name
-
-				bookRes, err := ww.PostBooking(bookingDate, &space)
-				if err != nil {
-					row.Error = fmt.Sprintf("booking failed: %v", err)
-				} else {
-					row.BookingStatus = bookRes
-				}
-				results = append(results, row)
-			}
-
-			// Output results
 			if jsonOut {
+				// JSON mode: compute results for all dates and emit once
+				type resultRow struct {
+					Date          string                  `json:"date"`
+					SpaceUUID     string                  `json:"spaceUUID"`
+					LocationUUID  string                  `json:"locationUUID"`
+					LocationName  string                  `json:"locationName"`
+					BookingStatus *wework.BookingResponse `json:"booking,omitempty"`
+					Error         string                  `json:"error,omitempty"`
+				}
+				var results []resultRow
+
+				for _, bookingDate := range dates {
+					row := resultRow{Date: bookingDate.Format("2006-01-02")}
+
+					spaces, err := ww.GetAvailableSpaces(bookingDate, []string{targetLocationUUID})
+					if err != nil {
+						row.Error = fmt.Sprintf("error getting spaces: %v", err)
+						results = append(results, row)
+						continue
+					}
+
+					if len(spaces.Response.Workspaces) == 0 {
+						row.Error = "no spaces found"
+						results = append(results, row)
+						continue
+					}
+
+					if len(spaces.Response.Workspaces) > 1 {
+						row.Error = "multiple spaces found, please specify a specific space"
+						results = append(results, row)
+						continue
+					}
+
+					space := spaces.Response.Workspaces[0]
+					row.SpaceUUID = space.UUID
+					row.LocationUUID = space.Location.UUID
+					row.LocationName = space.Location.Name
+
+					bookRes, err := ww.PostBooking(bookingDate, &space)
+					if err != nil {
+						row.Error = fmt.Sprintf("booking failed: %v", err)
+					} else {
+						row.BookingStatus = bookRes
+					}
+					results = append(results, row)
+				}
+
 				b, err := json.MarshalIndent(results, "", "  ")
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON: %v", err)
 				}
 				fmt.Println(string(b))
 			} else {
-				// Human-readable output with spinners
-				for _, result := range results {
-					if result.Error != "" {
-						fmt.Printf("❌ %s: %s\n", result.Date, result.Error)
-						continue
-					}
-
-					// Show success with spinner
+				// Text mode: drive spinner updates during network calls for each date
+				for _, bookingDate := range dates {
+					dateStr := bookingDate.Format("2006-01-02")
 					err := spinner.WithContinuousSpinner(func(cs *spinner.ContinuousSpinner) error {
-						if result.BookingStatus.BookingStatus != "BookingSuccess" {
-							errMsg := fmt.Sprintf("booking failed: %s", result.BookingStatus.BookingStatus)
-							for _, err := range result.BookingStatus.Errors {
-								errMsg += fmt.Sprintf("\n  %s", err)
+						cs.Update(fmt.Sprintf("%s: finding available spaces…", dateStr))
+
+						spaces, err := ww.GetAvailableSpaces(bookingDate, []string{targetLocationUUID})
+						if err != nil {
+							return fmt.Errorf("%s: error getting spaces: %v", dateStr, err)
+						}
+						if len(spaces.Response.Workspaces) == 0 {
+							return fmt.Errorf("%s: no spaces found", dateStr)
+						}
+						if len(spaces.Response.Workspaces) > 1 {
+							return fmt.Errorf("%s: multiple spaces found, please specify a specific space", dateStr)
+						}
+
+						space := spaces.Response.Workspaces[0]
+						cs.Update(fmt.Sprintf("%s: creating booking at %s…", dateStr, space.Location.Name))
+
+						bookRes, err := ww.PostBooking(bookingDate, &space)
+						if err != nil {
+							return fmt.Errorf("%s: booking failed: %v", dateStr, err)
+						}
+
+						if bookRes.BookingStatus != "BookingSuccess" {
+							errMsg := fmt.Sprintf("%s: booking failed: %s", dateStr, bookRes.BookingStatus)
+							for _, e := range bookRes.Errors {
+								errMsg += fmt.Sprintf("\n  %s", e)
 							}
 							return fmt.Errorf(errMsg)
 						}
 
-						cs.Success(fmt.Sprintf("Booking successful for %s! Reservation ID: %s", result.Date, result.BookingStatus.ReservationID))
+						cs.Success(fmt.Sprintf("Booking successful for %s! Reservation ID: %s", dateStr, bookRes.ReservationID))
 						return nil
 					})
 
