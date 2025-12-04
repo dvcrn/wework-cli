@@ -146,16 +146,90 @@ func (w *WeWork) GetLocationsByGeo(city string) (*LocationsByGeoResponse, error)
 	return &result, nil
 }
 
-func (w *WeWork) getAvailableSpacesWithCoords(t time.Time, locationUUIDs []string, userLatitude, userLongitude string) (*SharedWorkspaceResponse, error) {
+func (w *WeWork) GetLocationsByGeoCoords(lat, lng float64, delta float64) (*LocationsByGeoResponse, error) {
+	if delta <= 0 {
+		delta = 0.13
+	}
+	coords := newGeoCoords(lat, lng, delta)
+
 	params := url.Values{}
-	params.Add("locationUUIDs", strings.Join(locationUUIDs, ","))
+	params.Add("isAuthenticated", "true")
+	params.Add("isOnDemandUser", "false")
+	params.Add("city", "")
+	params.Add("userLatitude", strconv.FormatFloat(coords.lat, 'f', 15, 64))
+	params.Add("userLongitude", strconv.FormatFloat(coords.lng, 'f', 15, 64))
+	params.Add("boundnwLat", strconv.FormatFloat(coords.boundNWLat, 'f', 15, 64))
+	params.Add("boundnwLng", strconv.FormatFloat(coords.boundNWLng, 'f', 15, 64))
+	params.Add("boundseLat", strconv.FormatFloat(coords.boundSELat, 'f', 15, 64))
+	params.Add("boundseLng", strconv.FormatFloat(coords.boundSELng, 'f', 15, 64))
+
+	url := "https://members.wework.com/workplaceone/api/wework-yardi/ondemand/get-locations-by-geo?" + params.Encode()
+	resp, err := w.doRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result LocationsByGeoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &result, nil
+}
+
+type geoCoords struct {
+	lat        float64
+	lng        float64
+	boundNWLat float64
+	boundNWLng float64
+	boundSELat float64
+	boundSELng float64
+}
+
+func newGeoCoords(lat, lng, delta float64) *geoCoords {
+	return &geoCoords{
+		lat:        lat,
+		lng:        lng,
+		boundNWLat: lat + delta,
+		boundNWLng: lng - delta,
+		boundSELat: lat - delta,
+		boundSELng: lng + delta,
+	}
+}
+
+func (w *WeWork) getAvailableSpacesRequest(t time.Time, locationUUIDs []string, coords *geoCoords) (*SharedWorkspaceResponse, error) {
+	params := url.Values{}
+	if len(locationUUIDs) > 0 {
+		params.Add("locationUUIDs", strings.Join(locationUUIDs, ","))
+		// If we have explicit locations, ignore coordinates to avoid constraining results incorrectly.
+		coords = nil
+	}
 	params.Add("closestCity", "")
-	params.Add("userLatitude", userLatitude)
-	params.Add("userLongitude", userLongitude)
-	params.Add("boundnwLat", "")
-	params.Add("boundnwLng", "")
-	params.Add("boundseLat", "")
-	params.Add("boundseLng", "")
+	if coords != nil {
+		params.Add("userLatitude", strconv.FormatFloat(coords.lat, 'f', 7, 64))
+		params.Add("userLongitude", strconv.FormatFloat(coords.lng, 'f', 7, 64))
+
+		// Provide a bounding box when no explicit location UUIDs are supplied so the API searches by geo.
+		if len(locationUUIDs) == 0 {
+			params.Add("boundnwLat", strconv.FormatFloat(coords.boundNWLat, 'f', 7, 64))
+			params.Add("boundnwLng", strconv.FormatFloat(coords.boundNWLng, 'f', 7, 64))
+			params.Add("boundseLat", strconv.FormatFloat(coords.boundSELat, 'f', 7, 64))
+			params.Add("boundseLng", strconv.FormatFloat(coords.boundSELng, 'f', 7, 64))
+		} else {
+			params.Add("boundnwLat", "")
+			params.Add("boundnwLng", "")
+			params.Add("boundseLat", "")
+			params.Add("boundseLng", "")
+		}
+	} else {
+		params.Add("userLatitude", "")
+		params.Add("userLongitude", "")
+		params.Add("boundnwLat", "")
+		params.Add("boundnwLng", "")
+		params.Add("boundseLat", "")
+		params.Add("boundseLng", "")
+	}
 	params.Add("type", "0")
 	params.Add("offset", "0")
 	params.Add("limit", "50")
@@ -187,13 +261,11 @@ func (w *WeWork) getAvailableSpacesWithCoords(t time.Time, locationUUIDs []strin
 }
 
 func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*SharedWorkspaceResponse, error) {
-	return w.getAvailableSpacesWithCoords(t, locationUUIDs, "35.6953443", "139.7564755")
+	return w.getAvailableSpacesRequest(t, locationUUIDs, nil)
 }
 
 func (w *WeWork) GetAvailableSpacesByLatLong(t time.Time, locationUUIDs []string, userLatitude, userLongitude float64) (*SharedWorkspaceResponse, error) {
-	latStr := strconv.FormatFloat(userLatitude, 'f', 7, 64)
-	lngStr := strconv.FormatFloat(userLongitude, 'f', 7, 64)
-	return w.getAvailableSpacesWithCoords(t, locationUUIDs, latStr, lngStr)
+	return w.getAvailableSpacesRequest(t, locationUUIDs, newGeoCoords(userLatitude, userLongitude, 0.13))
 }
 
 func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
