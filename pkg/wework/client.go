@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -145,13 +146,12 @@ func (w *WeWork) GetLocationsByGeo(city string) (*LocationsByGeoResponse, error)
 	return &result, nil
 }
 
-func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*SharedWorkspaceResponse, error) {
-
+func (w *WeWork) getAvailableSpacesWithCoords(t time.Time, locationUUIDs []string, userLatitude, userLongitude string) (*SharedWorkspaceResponse, error) {
 	params := url.Values{}
 	params.Add("locationUUIDs", strings.Join(locationUUIDs, ","))
 	params.Add("closestCity", "")
-	params.Add("userLatitude", "35.6953443")
-	params.Add("userLongitude", "139.7564755")
+	params.Add("userLatitude", userLatitude)
+	params.Add("userLongitude", userLongitude)
 	params.Add("boundnwLat", "")
 	params.Add("boundnwLng", "")
 	params.Add("boundseLat", "")
@@ -178,17 +178,22 @@ func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*Share
 	buf.ReadFrom(resp.Body)
 	reader := bytes.NewReader(buf.Bytes())
 
-	//b := bytes.Buffer{}
-	//b.ReadFrom(reader)
-	//fmt.Println(b.String())
-	//
-	//reader.Seek(0, 0)
 	var result SharedWorkspaceResponse
 	if err := json.NewDecoder(reader).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
 	return &result, nil
+}
+
+func (w *WeWork) GetAvailableSpaces(t time.Time, locationUUIDs []string) (*SharedWorkspaceResponse, error) {
+	return w.getAvailableSpacesWithCoords(t, locationUUIDs, "35.6953443", "139.7564755")
+}
+
+func (w *WeWork) GetAvailableSpacesByLatLong(t time.Time, locationUUIDs []string, userLatitude, userLongitude float64) (*SharedWorkspaceResponse, error) {
+	latStr := strconv.FormatFloat(userLatitude, 'f', 7, 64)
+	lngStr := strconv.FormatFloat(userLongitude, 'f', 7, 64)
+	return w.getAvailableSpacesWithCoords(t, locationUUIDs, latStr, lngStr)
 }
 
 func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {

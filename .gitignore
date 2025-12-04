@@ -60,3 +60,4 @@ ENV/
 ehthumbs.db
 Thumbs.db
 .aider*
+fnox.toml
