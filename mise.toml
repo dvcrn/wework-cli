@@ -1,0 +1,15 @@
+[tools]
+go = "latest"
+
+[tasks.format]
+description = "Format code with goimports (organizes imports and formats)"
+run = 'find . -name "*.go" -type f -exec go tool goimports -w {} +'
+
+[tasks.install]
+description = "Install wework CLI tool locally"
+run = "go install ./cmd/wework"
+
+[tasks.build]
+description = "Build the application binary"
+run = "go build ./cmd/wework"
+
