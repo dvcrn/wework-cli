@@ -21,6 +21,12 @@ brew install wework
 go install github.com/dvcrn/wework-cli/cmd/wework@latest
 ```
 
+... or via npm:
+
+```
+npm install -g @dvcrn/wework-cli
+```
+
 
 ## Usage
 

@@ -11,6 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Lint: `golint ./...`
 - Vet: `go vet ./...`
 - Run tests: `go test ./...` (tests currently missing)
+- npm package (`npm/`): use `npm` (`npm ci`, `npm publish`)
 
 ## Architecture Overview
 
