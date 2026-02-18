@@ -28,7 +28,8 @@ builds:
       - -s -w -buildid=
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     wrap_in_directory: false
     files: []
@@ -41,6 +42,22 @@ release:
     owner: dvcrn
     name: wework-cli
   replace_existing_artifacts: true
+
+homebrew_casks:
+  - name: wework-cli
+    binaries:
+      - wework
+    repository:
+      owner: dvcrn
+      name: formulas
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/dvcrn/wework-cli"
+    description: "CLI tool for booking WeWork spaces"
+    commit_author:
+      name: github-actions[bot]
+      email: 41898282+github-actions[bot]@users.noreply.github.com
 
 changelog:
   sort: asc
