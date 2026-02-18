@@ -10,7 +10,7 @@ with brew:
 
 ```
 brew tap dvcrn/formulas
-brew install wework
+brew install --cask wework-cli
 ```
 
 ... or directly with Golang:
