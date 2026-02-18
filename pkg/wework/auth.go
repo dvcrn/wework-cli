@@ -75,7 +75,7 @@ func (e *WeWorkLoginError) Error() string {
 	return fmt.Sprintf("%s (%s)", e.Message, e.Code)
 }
 
-func (e *WeWorkLoginError) As(target interface{}) bool {
+func (e *WeWorkLoginError) As(target any) bool {
 	if p, ok := target.(*WeWorkLoginError); ok {
 		*p = *e
 		return true
@@ -680,7 +680,7 @@ func clipBody(body []byte) string {
 
 func (w *WeWorkAuth) loginToWeWork(tokens *OAuthTokenResponse) (*LoginByAuth0TokenResponse, error) {
 	loginURL := "https://members.wework.com/workplaceone/api/auth0/login-by-auth0-token"
-	loginData := map[string]interface{}{
+	loginData := map[string]any{
 		"id_token":      tokens.IDToken,
 		"access_token":  tokens.AccessToken,
 		"refresh_token": tokens.RefreshToken,

@@ -69,7 +69,7 @@ func authenticate() (*wework.WeWork, error) {
 	}
 
 	// Run authentication with spinner in text mode
-	result, err := spinner.RunWithSpinner("Authenticating with WeWork", func() (interface{}, error) {
+	result, err := spinner.RunWithSpinner("Authenticating with WeWork", func() (any, error) {
 		weworkAuth, err := wework.NewWeWorkAuth(username, password)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create WeWork auth: %v", err)

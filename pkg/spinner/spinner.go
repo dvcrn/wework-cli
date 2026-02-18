@@ -17,7 +17,7 @@ type SpinnerModel struct {
 	message string
 	done    bool
 	err     error
-	result  interface{}
+	result  any
 }
 
 // Init initializes the spinner
@@ -61,7 +61,7 @@ func (m SpinnerModel) View() string {
 }
 
 type doneMsg struct {
-	result interface{}
+	result any
 	err    error
 }
 
@@ -70,7 +70,7 @@ type updateMsg struct {
 }
 
 // RunWithSpinner executes a function while showing a spinner
-func RunWithSpinner(message string, fn func() (interface{}, error)) (interface{}, error) {
+func RunWithSpinner(message string, fn func() (any, error)) (any, error) {
 	// Check if spinner should be disabled
 	isTerminal := term.IsTerminal(int(os.Stdout.Fd()))
 	noSpinner := os.Getenv("WEWORK_NO_SPINNER") == "true" || os.Getenv("NO_SPINNER") == "true"
@@ -101,7 +101,7 @@ func RunWithSpinner(message string, fn func() (interface{}, error)) (interface{}
 
 	// Run the function in a goroutine
 	done := make(chan struct{})
-	var result interface{}
+	var result any
 	var err error
 
 	go func() {

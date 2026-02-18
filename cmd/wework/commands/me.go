@@ -41,7 +41,7 @@ func NewMeCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("failed to get bootstrap: %v", err)
 				}
-				payload := map[string]interface{}{"userProfile": userResponse, "bootstrap": bootstrap}
+				payload := map[string]any{"userProfile": userResponse, "bootstrap": bootstrap}
 				b, err := json.MarshalIndent(payload, "", "  ")
 				if err != nil {
 					return fmt.Errorf("failed to marshal JSON: %v", err)

@@ -1,6 +1,7 @@
 package wework
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -169,13 +170,7 @@ func TestFindCityByFuzzyName(t *testing.T) {
 					t.Errorf("expected %d cities, got %d: %v", len(tt.expectedCities), len(actualNames), actualNames)
 				}
 				for _, expected := range tt.expectedCities {
-					found := false
-					for _, actual := range actualNames {
-						if actual == expected {
-							found = true
-							break
-						}
-					}
+					found := slices.Contains(actualNames, expected)
 					if !found {
 						t.Errorf("expected city %s not found in %v", expected, actualNames)
 					}

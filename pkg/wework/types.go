@@ -244,14 +244,14 @@ type Seat struct {
 }
 
 type QuoteResponse struct {
-	UUID          string        `json:"uuid"`
-	QuoteStatus   int           `json:"quoteStatus"`
-	StatusDetails []interface{} `json:"statusDetails"`
-	GrandTotal    Money         `json:"grandTotal"`
-	SubTotal      Money         `json:"subTotal"`
-	Taxes         []interface{} `json:"taxes"`
-	LineItems     []LineItem    `json:"lineItems"`
-	Adjustments   []interface{} `json:"adjustments"`
+	UUID          string     `json:"uuid"`
+	QuoteStatus   int        `json:"quoteStatus"`
+	StatusDetails []any      `json:"statusDetails"`
+	GrandTotal    Money      `json:"grandTotal"`
+	SubTotal      Money      `json:"subTotal"`
+	Taxes         []any      `json:"taxes"`
+	LineItems     []LineItem `json:"lineItems"`
+	Adjustments   []any      `json:"adjustments"`
 }
 
 type Money struct {
@@ -363,8 +363,8 @@ type AppBootstrapResponse struct {
 	WeGateData struct {
 		WeGateFlags struct {
 			WeGateMemberWebFlags struct {
-				Meta struct{}      `json:"meta"`
-				Data []interface{} `json:"data"`
+				Meta struct{} `json:"meta"`
+				Data []any    `json:"data"`
 			} `json:"WeGateMemberWebFlags"`
 		} `json:"weGateFlags"`
 	} `json:"weGateData"`

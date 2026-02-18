@@ -17,7 +17,7 @@ type ContinuousSpinner struct {
 	program      *tea.Program
 	mu           sync.Mutex
 	finished     bool
-	messages     chan interface{}
+	messages     chan any
 	isTerminal   bool
 	noSpinner    bool
 	finalMessage string
@@ -70,7 +70,7 @@ func (m continuousModel) View() string {
 // NewContinuousSpinner creates a spinner that stays active across multiple operations
 func NewContinuousSpinner() *ContinuousSpinner {
 	return &ContinuousSpinner{
-		messages:   make(chan interface{}, 100),
+		messages:   make(chan any, 100),
 		isTerminal: term.IsTerminal(int(os.Stdout.Fd())),
 		noSpinner:  os.Getenv("WEWORK_NO_SPINNER") == "true" || os.Getenv("NO_SPINNER") == "true",
 	}
@@ -123,7 +123,7 @@ func (cs *ContinuousSpinner) Update(message string) {
 }
 
 // Printf prints formatted text above the spinner without interfering with it
-func (cs *ContinuousSpinner) Printf(format string, args ...interface{}) {
+func (cs *ContinuousSpinner) Printf(format string, args ...any) {
 	if !cs.isTerminal || cs.noSpinner {
 		fmt.Printf(format, args...)
 		return
@@ -140,7 +140,7 @@ func (cs *ContinuousSpinner) Printf(format string, args ...interface{}) {
 }
 
 // Println prints text above the spinner without interfering with it
-func (cs *ContinuousSpinner) Println(args ...interface{}) {
+func (cs *ContinuousSpinner) Println(args ...any) {
 	if !cs.isTerminal || cs.noSpinner {
 		fmt.Println(args...)
 		return

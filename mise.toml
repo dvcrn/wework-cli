@@ -1,9 +1,14 @@
 [tools]
-go = "latest"
-goreleaser = "latest"
+go = "1.26.0"
+goreleaser = "2.13.3"
+
+[tasks.fix]
+description = "Auto-applies Golang fixes"
+run = "go fix ./..."
 
 [tasks.format]
-description = "Format code with goimports (organizes imports and formats)"
+description = "Run go fix, then format code with goimports"
+depends = ["fix"]
 run = 'find . -name "*.go" -type f -exec go tool goimports -w {} +'
 
 [tasks.install]
@@ -12,6 +17,7 @@ run = "go install ./cmd/wework"
 
 [tasks.build]
 description = "Build the application binary"
+depends = ["fix"]
 run = "go build ./cmd/wework"
 
 [tasks.goreleaser_snapshot]

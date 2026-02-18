@@ -194,11 +194,12 @@ func NewBookCommand(authenticate func() (*wework.WeWork, error)) *cobra.Command 
 						}
 
 						if bookRes.BookingStatus != "BookingSuccess" {
-							errMsg := fmt.Sprintf("%s: booking failed: %s", dateStr, bookRes.BookingStatus)
+							var errMsg strings.Builder
+							errMsg.WriteString(fmt.Sprintf("%s: booking failed: %s", dateStr, bookRes.BookingStatus))
 							for _, e := range bookRes.Errors {
-								errMsg += fmt.Sprintf("\n  %s", e)
+								errMsg.WriteString(fmt.Sprintf("\n  %s", e))
 							}
-							return fmt.Errorf(errMsg)
+							return fmt.Errorf(errMsg.String())
 						}
 
 						cs.Success(fmt.Sprintf("Booking successful for %s! Reservation ID: %s", dateStr, bookRes.ReservationID))

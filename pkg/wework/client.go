@@ -64,7 +64,7 @@ func extractUUIDFromToken(token string) string {
 	}
 
 	// Parse the JSON
-	var claims map[string]interface{}
+	var claims map[string]any
 	if err := json.Unmarshal(payload, &claims); err != nil {
 		return ""
 	}
@@ -77,7 +77,7 @@ func extractUUIDFromToken(token string) string {
 	return ""
 }
 
-func (w *WeWork) doRequest(method, url string, data interface{}) (*http.Response, error) {
+func (w *WeWork) doRequest(method, url string, data any) (*http.Response, error) {
 	var body []byte
 	var err error
 
@@ -345,10 +345,10 @@ func (w *WeWork) GetPastBookingsWithDates(startDate, endDate time.Time) ([]*Book
 func (w *WeWork) GetBootstrap() (*AppBootstrapResponse, error) {
 	url := "https://members.wework.com/workplaceone/api/app-bootstrap/bootstrap"
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"InvalidateCache": false,
 		"platform":        1,
-		"FeatureFlags": map[string]interface{}{
+		"FeatureFlags": map[string]any{
 			"WeGateMemberWebFlags": []string{
 				"WG_WEWORK_W_HOMEPAGE_PRINTING",
 				"WG_WEWORK_W_MEMWEB_ANNOUNCEMENTS_FROM_CONTENTFUL",
@@ -367,7 +367,7 @@ func (w *WeWork) GetBootstrap() (*AppBootstrapResponse, error) {
 			"WeGateiOSFlags":     []string{},
 			"WeGateAndroidFlags": []string{},
 		},
-		"PermissionRequest": map[string]interface{}{
+		"PermissionRequest": map[string]any{
 			"MENAflags": []string{
 				"mena_module_building_guide_categories",
 				"mena_module_account_manager",
@@ -514,12 +514,12 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 		return nil, fmt.Errorf("failed to get quote parameters: %w", err)
 	}
 
-	quoteData := map[string]interface{}{
+	quoteData := map[string]any{
 		"SpaceType":            4,
 		"ReservationID":        "",
 		"TriggerCalendarEvent": true,
 		"Notes":                nil,
-		"MailData": map[string]interface{}{
+		"MailData": map[string]any{
 			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
 			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
 			"endTimeFormatted":   fmt.Sprintf("%s PM", space.CloseTime),
@@ -596,14 +596,14 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 	bookingSpaceID := getBookingSpaceID(space)
 
 	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
-	bookingData := map[string]interface{}{
+	bookingData := map[string]any{
 		"ApplicationType":      "WorkplaceOne",
 		"PlatformType":         "iOS_APP",
 		"SpaceType":            4,
 		"ReservationID":        "",
 		"TriggerCalendarEvent": true,
 		"Notes":                nil,
-		"MailData": map[string]interface{}{
+		"MailData": map[string]any{
 			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
 			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
 			"endTimeFormatted":   fmt.Sprintf("%s PM", space.CloseTime),
