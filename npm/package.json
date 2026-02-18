@@ -1,6 +1,6 @@
 {
-  "name": "@dvcrn/wework-cli",
-  "version": "0.0.0",
+  "name": "wework-cli",
+  "version": "1.0.1",
   "description": "Release package for wework CLI",
   "scripts": {
     "postinstall": "node postinstall.js"
@@ -9,7 +9,8 @@
     "access": "public"
   },
   "bin": {
-    "wework": "index.js"
+    "wework": "index.js",
+    "wework-cli": "index.js"
   },
   "dependencies": {
     "semver": "^7.7.4"
