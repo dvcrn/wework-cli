@@ -33,7 +33,7 @@ For Claude Code, the equivalent commands are:
 
 ```bash
 claude plugins marketplace add dvcrn/wework-cli
-claude plugins install wework@wework --scope user
+claude plugins install wework@dvcrn-wework-cli --scope user
 ```
 
 For `npx skills`, run:

@@ -1,5 +1,5 @@
 {
-  "name": "wework",
+  "name": "dvcrn-wework-cli",
   "owner": {
     "name": "dvcrn"
   },
@@ -26,7 +26,7 @@
         "skills",
         "claude-plugin"
       ],
-      "source": "./wework"
+      "source": "./.claude-plugin/plugins/wework"
     }
   ]
 }
