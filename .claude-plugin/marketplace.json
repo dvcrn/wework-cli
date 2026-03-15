@@ -1,0 +1,32 @@
+{
+  "name": "wework",
+  "owner": {
+    "name": "dvcrn"
+  },
+  "metadata": {
+    "description": "Claude plugin for WeWork desk booking, booking lookups, and calendar exports.",
+    "version": "1.0.1",
+    "pluginRoot": "./.claude-plugin/plugins"
+  },
+  "plugins": [
+    {
+      "name": "wework",
+      "description": "Claude plugin for WeWork desk booking, booking lookups, and calendar exports with the installed wework CLI.",
+      "version": "1.0.1",
+      "author": {
+        "name": "dvcrn",
+        "url": "https://github.com/dvcrn"
+      },
+      "homepage": "https://github.com/dvcrn/wework-cli",
+      "repository": "https://github.com/dvcrn/wework-cli",
+      "license": "MIT",
+      "keywords": [
+        "wework",
+        "booking",
+        "skills",
+        "claude-plugin"
+      ],
+      "source": "./wework"
+    }
+  ]
+}

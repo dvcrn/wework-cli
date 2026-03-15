@@ -1,3 +1,5 @@
+- Repo: dvcrn/wework-cli
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -123,3 +125,5 @@ bookingData["CreditRatio"] = quote.GrandTotal.CreditRatio
 - Browser DevTools can help understand WeWork API endpoints
 - The auth flow mimics browser behavior for compatibility
 - Always run `mise run format` in between steps. This will re-format the entire codebase and fix imports (remove unused imports, adds new imports)
+- Claude plugin packaging lives under `.claude-plugin/plugins/wework`; keep skill runtime references inside that plugin subtree because plugin installs are copied into a cache
+- Sync the npm and Claude plugin manifest versions with `mise run sync_versions`; `npm/package.json` is the source of truth

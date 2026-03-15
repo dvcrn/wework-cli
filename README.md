@@ -25,6 +25,23 @@ go install github.com/dvcrn/wework-cli/cmd/wework@latest
 npm install -g wework-cli
 ```
 
+## Agent Installation
+
+For Claude Desktop, add `dvcrn/wework-cli` as a marketplace plugin, then install the `wework` plugin from that marketplace.
+
+For Claude Code, the equivalent commands are:
+
+```bash
+claude plugins marketplace add dvcrn/wework-cli
+claude plugins install wework@wework --scope user
+```
+
+For `npx skills`, run:
+
+```bash
+npx skills add dvcrn/wework-cli
+```
+
 ## Usage
 
 After installation, you can use the `wework` command in your terminal:
@@ -116,7 +133,8 @@ To set up the development environment:
 2. Install Go dependencies: `go mod download`
 3. Build the project: `go build ./cmd/wework`
 4. Run tests: `go test ./...`
-5. Submit a pull request
+5. Sync package and plugin versions when needed: `mise run sync_versions`
+6. Submit a pull request
 
 ## License
 

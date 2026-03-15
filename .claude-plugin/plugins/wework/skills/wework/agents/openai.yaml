@@ -1,0 +1,7 @@
+interface:
+  display_name: "WeWork"
+  short_description: "Operate the installed wework booking CLI"
+  default_prompt: "Use $wework to handle a concrete WeWork CLI task with the installed `wework` binary."
+
+policy:
+  allow_implicit_invocation: true

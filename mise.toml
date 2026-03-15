@@ -15,6 +15,10 @@ run = 'find . -name "*.go" -type f -exec go tool goimports -w {} +'
 description = "Install wework CLI tool locally"
 run = "go install ./cmd/wework"
 
+[tasks.sync_versions]
+description = "Sync plugin/package versions from npm/package.json"
+run = "node scripts/sync_versions.mjs"
+
 [tasks.build]
 description = "Build the application binary"
 depends = ["fix"]
