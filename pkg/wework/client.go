@@ -78,6 +78,10 @@ func extractUUIDFromToken(token string) string {
 }
 
 func (w *WeWork) doRequest(method, url string, data any) (*http.Response, error) {
+	return w.doRequestWithHeaders(method, url, data, nil)
+}
+
+func (w *WeWork) doRequestWithHeaders(method, url string, data any, headers http.Header) (*http.Response, error) {
 	var body []byte
 	var err error
 
@@ -91,6 +95,11 @@ func (w *WeWork) doRequest(method, url string, data any) (*http.Response, error)
 	req, err := http.NewRequest(method, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
 	}
 
 	resp, err := w.client.Do(req)

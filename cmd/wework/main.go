@@ -38,6 +38,7 @@ func main() {
 		commands.NewDesksCommand(authenticate),
 		commands.NewBookingsCommand(authenticate),
 		commands.NewBookCommand(authenticate),
+		commands.NewCancelCommand(authenticate),
 		commands.NewCalendarCommand(authenticate),
 		commands.NewMeCommand(authenticate),
 		commands.NewInfoCommand(authenticate),

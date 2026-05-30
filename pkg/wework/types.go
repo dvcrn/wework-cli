@@ -96,6 +96,7 @@ type SharedWorkspace struct {
 type SharedWorkspaceLocation struct {
 	KubePropertyID       int     `json:"kubePropertyID"`
 	CwmPropertyID        int     `json:"cwmPropertyID"`
+	AccountType          int     `json:"accountType"`
 	UUID                 string  `json:"uuid"`
 	Name                 string  `json:"name"`
 	Latitude             float64 `json:"latitude"`
