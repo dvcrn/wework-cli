@@ -6,23 +6,22 @@ wework is a CLI tool for booking WeWork spaces.
 
 ## Installation
 
-with brew:
+### With npm
 
-```
-brew tap dvcrn/formulas
-brew install --cask wework-cli
-```
-
-... or directly with Golang:
-
-```
-go install github.com/dvcrn/wework-cli/cmd/wework@latest
-```
-
-... or via npm:
-
-```
+```bash
 npm install -g wework-cli
+```
+
+### With mise
+
+```bash
+mise use -g go:github.com/dvcrn/wework-cli/cmd/wework@latest
+```
+
+### With Go
+
+```bash
+go install github.com/dvcrn/wework-cli/cmd/wework@latest
 ```
 
 ## Agent Installation
