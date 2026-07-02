@@ -117,10 +117,12 @@ func NewWeWorkAuth(username, password string) (*WeWorkAuth, error) {
 }
 
 func (w *WeWorkAuth) getAuth0Config() error {
-	baseURL := "https://members.wework.com/workplaceone/api/auth0/config"
+	// WeWork migrated to the idp.wework.com Auth0 tenant and replaced
+	// /workplaceone/api/auth0/config (now 404) with a v2 endpoint that returns
+	// the auth0-spa-js client configuration under authorizationParams.
+	baseURL := "https://members.wework.com/workplaceone/api/auth0/v2/config"
 	params := url.Values{}
-	params.Add("companyId", "00000000-0000-0000-0000-000000000000")
-	params.Add("domain", "members.wework.com")
+	params.Add("domain", "members.wework.com/workplaceone")
 
 	resp, err := w.client.Get(baseURL + "?" + params.Encode())
 	if err != nil {
@@ -128,12 +130,25 @@ func (w *WeWorkAuth) getAuth0Config() error {
 	}
 	defer resp.Body.Close()
 
-	var config Auth0Config
-	if err := json.NewDecoder(resp.Body).Decode(&config); err != nil {
+	var raw struct {
+		Domain              string `json:"domain"`
+		ClientID            string `json:"clientId"`
+		AuthorizationParams struct {
+			Scope       string `json:"scope"`
+			Audience    string `json:"audience"`
+			RedirectURI string `json:"redirect_uri"`
+		} `json:"authorizationParams"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
 		return fmt.Errorf("failed to decode auth0 config: %w", err)
 	}
 
-	w.config = &config
+	w.config = &Auth0Config{
+		ClientID:    raw.ClientID,
+		Domain:      raw.Domain,
+		RedirectURI: raw.AuthorizationParams.RedirectURI,
+		Audience:    raw.AuthorizationParams.Audience,
+	}
 	weWorkUrl, err := url.Parse("https://members.wework.com")
 	if err != nil {
 		return fmt.Errorf("failed to parse URL: %w", err)
@@ -177,7 +192,7 @@ func (w *WeWorkAuth) Authenticate() (*LoginByAuth0TokenResponse, *OAuthTokenResp
 	authParams.Add("nonce", nonce)
 	authParams.Add("code_challenge", w.codeChallenge)
 	authParams.Add("code_challenge_method", "S256")
-	authParams.Add("auth0Client", "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=")
+	authParams.Add("auth0Client", "eyJuYW1lIjoiYXV0aDAtc3BhLWpzIiwidmVyc2lvbiI6IjIuMS4yIn0=")
 
 	authURL := fmt.Sprintf("https://%s/authorize?%s", w.config.Domain, authParams.Encode())
 	resp, err := w.client.Get(authURL)
@@ -243,7 +258,7 @@ func (w *WeWorkAuth) tryCrossOriginAuthenticate() (string, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Origin", "https://members.wework.com")
 	req.Header.Set("Referer", "https://members.wework.com/workplaceone/content2/login")
-	req.Header.Set("Auth0-Client", "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=")
+	req.Header.Set("Auth0-Client", "eyJuYW1lIjoiYXV0aDAtc3BhLWpzIiwidmVyc2lvbiI6IjIuMS4yIn0=")
 
 	resp, err := w.client.Do(req)
 	if err != nil {
@@ -287,7 +302,7 @@ func (w *WeWorkAuth) authorizeWithLoginTicket(loginTicket, state, nonce string) 
 	params.Add("state", state)
 	params.Add("code_challenge", w.codeChallenge)
 	params.Add("code_challenge_method", "S256")
-	params.Add("auth0Client", "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=")
+	params.Add("auth0Client", "eyJuYW1lIjoiYXV0aDAtc3BhLWpzIiwidmVyc2lvbiI6IjIuMS4yIn0=")
 	params.Add("login_ticket", loginTicket)
 
 	cookiePayload := map[string]string{
@@ -679,44 +694,32 @@ func clipBody(body []byte) string {
 }
 
 func (w *WeWorkAuth) loginToWeWork(tokens *OAuthTokenResponse) (*LoginByAuth0TokenResponse, error) {
-	loginURL := "https://members.wework.com/workplaceone/api/auth0/login-by-auth0-token"
-	loginData := map[string]any{
-		"id_token":      tokens.IDToken,
-		"access_token":  tokens.AccessToken,
-		"refresh_token": tokens.RefreshToken,
-		"expires_in":    tokens.ExpiresIn,
-		"scope":         tokens.Scope,
-		"token_type":    tokens.TokenType,
-		"client_id":     w.config.ClientID,
-		"audience":      w.config.Audience,
+	// WeWork retired /workplaceone/api/auth0/login-by-auth0-token (now 404)
+	// during their Auth0 tenant migration. With the "wework" audience the Auth0
+	// access token is itself the WeWork API bearer, so we build the login
+	// response locally from the token exchange instead of calling the endpoint.
+	if tokens == nil || tokens.AccessToken == "" {
+		return nil, fmt.Errorf("failed to login to WeWork: missing access token from token exchange")
 	}
 
-	loginBody, err := json.Marshal(loginData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal WeWork login data: %v", err)
+	loginResp := &LoginByAuth0TokenResponse{
+		Token:        tokens.AccessToken,
+		IDToken:      tokens.IDToken,
+		RefreshToken: tokens.RefreshToken,
+		A0token:      tokens.AccessToken,
+		Username:     w.username,
+		AccessToken:  tokens.AccessToken,
 	}
+	loginResp.A0Tokens.AccessToken = tokens.AccessToken
+	loginResp.A0Tokens.Audience = w.config.Audience
+	loginResp.A0Tokens.ClientID = w.config.ClientID
+	loginResp.A0Tokens.ExpiresIn = tokens.ExpiresIn
+	loginResp.A0Tokens.IDToken = tokens.IDToken
+	loginResp.A0Tokens.RefreshToken = tokens.RefreshToken
+	loginResp.A0Tokens.Scope = tokens.Scope
+	loginResp.A0Tokens.TokenType = tokens.TokenType
 
-	req, err := http.NewRequest("POST", loginURL, bytes.NewBuffer(loginBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create WeWork login request: %v", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Request-Source", "com.wework.ondemand/WorkplaceOne/Prod/iOS/2.71.0(26.1)")
-	req.Header.Set("User-Agent", "Mobile Safari 16.1")
-
-	resp, err := w.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to login to WeWork: %v", err)
-	}
-	defer resp.Body.Close()
-
-	var loginResp LoginByAuth0TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
-		return nil, fmt.Errorf("failed to decode WeWork login response: %v", err)
-	}
-
-	return &loginResp, nil
+	return loginResp, nil
 }
 
 func generateCodeVerifier() string {
