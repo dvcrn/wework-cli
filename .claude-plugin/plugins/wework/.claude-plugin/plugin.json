@@ -1,7 +1,7 @@
 {
   "name": "wework",
   "description": "Claude plugin for WeWork booking, booking lookup, and calendar export tasks using the installed wework CLI.",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "author": {
     "name": "dvcrn",
     "url": "https://github.com/dvcrn"

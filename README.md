@@ -79,51 +79,65 @@ Examples:
 
 1. List locations in a city:
 
+   ```bash
    wework locations --city "New York" --username your_username --password your_password
 
    # Or using environment variables:
-
    wework locations --city "New York"
+   ```
 
 2. List available desks for a date:
 
-   wework desks 2023-06-01 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   ```bash
+   wework desks 2026-06-01 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   ```
 
 3. Book a space:
 
-   wework book 2023-06-01 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   ```bash
+   wework book 2026-06-01 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
 
    # Or using city and name:
+   wework book 2026-06-01 --city "New York" --name "WeWork Times Square" --username your_username --password your_password
+   ```
 
-   wework book 2023-06-01 --city "New York" --name "WeWork Times Square" --username your_username --password your_password
+   Note: You can book multiple dates by using a date range or comma-separated list:
 
-Note: You can book multiple dates by using a date range or comma-separated list:
+   ```bash
+   wework book 2026-06-01~2026-06-05 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   wework book 2026-06-01,2026-06-03,2026-06-05 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   ```
 
-wework book 2023-06-01~2023-06-05 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
-wework book 2023-06-01,2023-06-03,2023-06-05 --location-uuid YOUR_LOCATION_UUID --username your_username --password your_password
+   You can also use the `--city` option with the `desks` action to list available desks in a specific city:
 
-You can also use the `--city` option with the `desks` action to list available desks in a specific city:
-
-wework desks 2023-06-01 --city "New York" --username your_username --password your_password
+   ```bash
+   wework desks 2026-06-01 --city "New York" --username your_username --password your_password
+   ```
 
 4. List your upcoming bookings:
 
+   ```bash
    wework bookings --username your_username --password your_password
+   ```
 
 5. Generate a calendar file for importing into calendar apps:
 
+   ```bash
    wework calendar --username your_username --password your_password
+   ```
 
 6. Show profile information:
 
+   ```bash
    wework me --username your_username --password your_password
 
    # With bootstrap data:
-
    wework me --include-bootstrap
+   ```
 
 7. Manage favorite locations:
 
+   ```bash
    # List favorite locations:
    wework favorites
 
@@ -135,15 +149,18 @@ wework desks 2023-06-01 --city "New York" --username your_username --password yo
    wework favorites remove "Shibuya Scramble Square"
    wework favorites remove YOUR_LOCATION_UUID
    wework favorites remove FAVORITE_ID
+   ```
 
 8. Manage print queue:
 
+   ```bash
    # View current print queue:
    wework print
 
    # Upload a document to print:
    wework print add ./document.pdf
    wework print add ./document.pdf --copies 2 --color monochrome --sides two-sided-long-edge
+   ```
 
 For more information on available options, use:
 
