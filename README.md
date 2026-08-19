@@ -54,6 +54,8 @@ Available actions:
 - `book`: Book a WeWork space
 - `desks`: List available desks
 - `locations`: List WeWork locations in a city
+- `favorites`: Manage favorite locations (list, add, remove)
+- `print`: Manage print queue and upload print jobs
 - `calendar`: Generate an iCalendar (.ics) file containing your WeWork bookings
 - `me`: Get your profile information
 
@@ -119,6 +121,29 @@ wework desks 2023-06-01 --city "New York" --username your_username --password yo
    # With bootstrap data:
 
    wework me --include-bootstrap
+
+7. Manage favorite locations:
+
+   # List favorite locations:
+   wework favorites
+
+   # Add a location to favorites:
+   wework favorites add --city "Tokyo" --name "Shibuya Scramble Square"
+   wework favorites add YOUR_LOCATION_UUID
+
+   # Remove a location from favorites:
+   wework favorites remove "Shibuya Scramble Square"
+   wework favorites remove YOUR_LOCATION_UUID
+   wework favorites remove FAVORITE_ID
+
+8. Manage print queue:
+
+   # View current print queue:
+   wework print
+
+   # Upload a document to print:
+   wework print add ./document.pdf
+   wework print add ./document.pdf --copies 2 --color monochrome --sides two-sided-long-edge
 
 For more information on available options, use:
 
