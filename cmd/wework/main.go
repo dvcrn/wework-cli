@@ -11,15 +11,9 @@ import (
 )
 
 var (
-	username         string
-	password         string
-	locationUUID     string
-	city             string
-	name             string
-	date             string
-	calendarPath     string
-	includeBootstrap bool
-	outputJSON       bool
+	username   string
+	password   string
+	outputJSON bool
 )
 
 func main() {
@@ -43,6 +37,8 @@ func main() {
 		commands.NewMeCommand(authenticate),
 		commands.NewInfoCommand(authenticate),
 		commands.NewQuoteCommand(authenticate),
+		commands.NewFavoritesCommand(authenticate),
+		commands.NewPrintCommand(authenticate),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

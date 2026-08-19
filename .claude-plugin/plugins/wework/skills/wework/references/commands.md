@@ -103,6 +103,68 @@ Include bootstrap data:
 wework me --include-bootstrap
 ```
 
+## Favorites
+
+List favorite locations:
+
+```bash
+wework favorites
+```
+
+List favorite locations with recent locations:
+
+```bash
+wework favorites --recent
+```
+
+List favorites for other space types (0: Desk, 1: Office, 2: Meeting Room, 3: Event Space):
+
+```bash
+wework favorites --space-type 2
+```
+
+Add a favorite by location UUID:
+
+```bash
+wework favorites add LOCATION_UUID
+```
+
+Add a favorite by city and name:
+
+```bash
+wework favorites add --city "Tokyo" --name "Shibuya Scramble Square"
+```
+
+Remove a favorite by favorite ID or location UUID:
+
+```bash
+wework favorites remove FAVORITE_ID
+wework favorites remove --location-uuid LOCATION_UUID
+wework favorites remove --city "Tokyo" --name "Hareza Ikebukuro"
+```
+
+## Print Hub
+
+View print queue:
+
+```bash
+wework print
+wework print queue
+```
+
+Filter print queue by job IDs:
+
+```bash
+wework print queue --job-ids "12345,67890"
+```
+
+Upload a document to the print queue:
+
+```bash
+wework print add ./document.pdf
+wework print add ./document.pdf --copies 2 --color monochrome --sides two-sided-long-edge
+```
+
 ## Secondary Commands
 
 Get a quote without booking:

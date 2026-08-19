@@ -43,6 +43,7 @@ type FavoriteLocation struct {
 // MarkFavoriteLocationRequest is the body sent when favoriting or unfavoriting a
 // location. Set IsDeleted to true to remove an existing favorite.
 type MarkFavoriteLocationRequest struct {
+	ID                  int    `json:"Id,omitempty"`
 	LocationID          string `json:"LocationId"`
 	SpaceType           int    `json:"SpaceType"`
 	IsDeleted           bool   `json:"IsDeleted"`
@@ -99,7 +100,7 @@ func (w *WeWork) MarkFavoriteLocation(request MarkFavoriteLocationRequest) (map[
 		return map[string]any{"ok": true}, nil
 	}
 
-	var result map[string]any
+	result := make(map[string]any)
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
