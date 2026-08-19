@@ -130,8 +130,12 @@ func (w *WeWork) cancelBooking(cancelReq *CancelBookingRequest) (*CancelBookingR
 	return &CancelBookingResponse{Raw: raw}, nil
 }
 
+// formatCancelTime renders a booking time the way the API reported it: a
+// location-local wall clock with no zone suffix. Booking times are anchored in the
+// location's timezone (see adjustBookingTimezone), so the wall clock is formatted
+// as-is rather than converted to UTC.
 func formatCancelTime(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05.000")
+	return t.Format("2006-01-02T15:04:05.000")
 }
 
 func creditsUsed(booking *Booking) float64 {
