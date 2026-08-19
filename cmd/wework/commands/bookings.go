@@ -134,11 +134,19 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 			}
 
 			if jsonOut, _ := cmd.Flags().GetBool("json"); jsonOut {
+				// Date/startTime/endTime are in the location's local timezone; startsAt
+				// and endsAt repeat them as RFC 3339 timestamps so consumers do not have
+				// to rely on the separate timezone field to resolve them.
 				type compactBooking struct {
 					UUID         string `json:"uuid"`
 					Date         string `json:"date"`
 					StartTime    string `json:"startTime"`
 					EndTime      string `json:"endTime"`
+					StartsAt     string `json:"startsAt"`
+					EndsAt       string `json:"endsAt"`
+					StartsAtUTC  string `json:"startsAtUTC"`
+					EndsAtUTC    string `json:"endsAtUTC"`
+					TimeZone     string `json:"timezone"`
 					LocationName string `json:"locationName"`
 					LocationUUID string `json:"locationUUID"`
 					Address      string `json:"address"`
@@ -148,11 +156,18 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 
 				var compact []compactBooking
 				for _, booking := range bookings {
+					startsAt := booking.StartsAt.Time
+					endsAt := booking.EndsAt.Time
 					compact = append(compact, compactBooking{
 						UUID:         booking.UUID,
-						Date:         booking.StartsAt.Time.Format("2006-01-02"),
-						StartTime:    booking.StartsAt.Time.Format("15:04"),
-						EndTime:      booking.EndsAt.Time.Format("15:04"),
+						Date:         startsAt.Format("2006-01-02"),
+						StartTime:    startsAt.Format("15:04"),
+						EndTime:      endsAt.Format("15:04"),
+						StartsAt:     startsAt.Format(time.RFC3339),
+						EndsAt:       endsAt.Format(time.RFC3339),
+						StartsAtUTC:  startsAt.UTC().Format(time.RFC3339),
+						EndsAtUTC:    endsAt.UTC().Format(time.RFC3339),
+						TimeZone:     bookingTimeZone(booking),
 						LocationName: booking.Reservable.Location.Name,
 						LocationUUID: booking.Reservable.Location.UUID,
 						Address:      booking.Reservable.Location.Address.Line1,
@@ -211,4 +226,16 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 	cmd.Flags().StringVar(&endDate, "end-date", "", "End date for past bookings (YYYY-MM-DD)")
 
 	return cmd
+}
+
+// bookingTimeZone returns the IANA timezone the booking's times are expressed in,
+// preferring the booking's own field and falling back to its location's.
+func bookingTimeZone(booking *wework.Booking) string {
+	if booking.TimeZone != "" {
+		return booking.TimeZone
+	}
+	if booking.Reservable != nil && booking.Reservable.Location != nil {
+		return booking.Reservable.Location.TimeZone
+	}
+	return ""
 }

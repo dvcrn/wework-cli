@@ -307,17 +307,40 @@ func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
 	return result.Bookings, nil
 }
 
+// adjustBookingTimezone anchors a booking's times in its location's timezone.
+//
+// The API reports booking times as location-local wall clock stamped with a "Z"
+// suffix rather than as real UTC instants: a 09:00-20:00 booking at Shibuya
+// Scramble Square (Asia/Tokyo, opening hours 09:00-20:00 local) is returned as
+// 2026-09-11T09:00:00.000Z / 2026-09-11T20:00:00.000Z. Converting those values to
+// the location timezone would shift them by the offset (yielding 18:00-05:00), so
+// the wall clock is kept and re-anchored in the location's zone instead.
 func (w *WeWork) adjustBookingTimezone(booking *Booking) {
 	if booking.Reservable == nil || booking.Reservable.Location == nil {
 		return
 	}
-	loc, err := time.LoadLocation(booking.Reservable.Location.TimeZone)
+	timezone := booking.Reservable.Location.TimeZone
+	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		return
 	}
 
-	booking.StartsAt.Time = booking.StartsAt.Time.In(loc)
-	booking.EndsAt.Time = booking.EndsAt.Time.In(loc)
+	if booking.TimeZone == "" {
+		booking.TimeZone = timezone
+	}
+
+	booking.StartsAt.Time = anchorWallClock(booking.StartsAt.Time, loc)
+	booking.EndsAt.Time = anchorWallClock(booking.EndsAt.Time, loc)
+	booking.ModificationDeadline.Time = anchorWallClock(booking.ModificationDeadline.Time, loc)
+}
+
+// anchorWallClock reinterprets t's wall clock reading in loc, without shifting it.
+func anchorWallClock(t time.Time, loc *time.Location) time.Time {
+	if t.IsZero() {
+		return t
+	}
+	utc := t.UTC()
+	return time.Date(utc.Year(), utc.Month(), utc.Day(), utc.Hour(), utc.Minute(), utc.Second(), utc.Nanosecond(), loc)
 }
 
 func (w *WeWork) GetPastBookings() ([]*Booking, error) {
