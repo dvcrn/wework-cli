@@ -52,60 +52,81 @@ type GeoLocation struct {
 	IsMigrated           bool    `json:"isMigrated"`
 }
 
-type UpcomingBookingsResponse struct {
-	Bookings []*Booking `json:"WeWorkBookings"`
-}
-
+// Booking is a reservation as returned by the get-app-upcoming-bookings endpoint,
+// which serves both upcoming and past reservations.
+//
+// bookingCreatedDate/bookingUpdatedDate are omitted: the API reports them without
+// a zone suffix, which CustomTime cannot parse, and nothing here consumes them.
 type Booking struct {
-	UUID                         string           `json:"uuid"`
-	StartsAt                     CustomTime       `json:"startsAt"`
-	EndsAt                       CustomTime       `json:"endsAt"`
-	TimeZone                     string           `json:"timezone"`
-	CreditOrder                  *CreditOrder     `json:"creditOrder"`
-	Reservable                   *SharedWorkspace `json:"reservable"`
-	IsAttendee                   bool             `json:"isAttendee"`
-	ModificationDeadline         CustomTime       `json:"modificationDeadline"`
-	Order                        Order            `json:"order"`
-	IsMultidayBooking            bool             `json:"isMultidayBooking"`
-	KubeSameDayCancelPolicy      bool             `json:"kubeSameDayCancelPolicy"`
-	IsFromKube                   bool             `json:"isFromKube"`
+	BookingID                    string           `json:"bookingId"`
+	FranchiseBookingExtReference string           `json:"franchiseBookingExtReference"`
 	KubeBookingExternalReference string           `json:"kubeBookingExternalReference"`
-	CwmBookingReferenceID        int              `json:"cwmBookingReferenceId"`
-	IsFromCwm                    bool             `json:"isFromCwm"`
-	IsBookingConfirmationPending bool             `json:"isBookingConfirmationPending"`
-	IsBookingApprovalOn          bool             `json:"IsBookingApprovalOn"`
+	StartsAt                     CustomTime       `json:"startDate"`
+	EndsAt                       CustomTime       `json:"endDate"`
+	ModificationDeadline         CustomTime       `json:"modificationDeadlineTime"`
+	Location                     *BookingLocation `json:"location"`
+	SpaceID                      string           `json:"spaceId"`
+	SpaceExternalReference       string           `json:"spaceExternalReference"`
+	SpaceName                    string           `json:"spaceName"`
+	SpaceType                    int              `json:"spaceType"`
+	SpaceCapacity                int              `json:"spaceCapacity"`
+	CreditCost                   float64          `json:"creditCost"`
+	BookingCurrencySymbol        string           `json:"bookingCurrencySymbol"`
+	Order                        BookingOrder     `json:"order"`
+	Status                       int              `json:"status"`
+	ImageURL                     string           `json:"imageURL"`
+	IsAttendee                   bool             `json:"isAttendee"`
+	IsCancelled                  bool             `json:"isCancelled"`
+	IsMultiDay                   bool             `json:"isMultiDay"`
+	IsPendingApproval            bool             `json:"isPendingApproval"`
+	IsFranchiseBooking           bool             `json:"isFranchiseBooking"`
+	UseKubeAPI                   bool             `json:"useKubeApi"`
 	SameDayCancelPolicy          bool             `json:"sameDayCancelPolicy"`
-	// KubeCreatedOnDate            *time.Time      `json:"kubeCreatedOnDate,omitempty"`
-	// KubeModifiedOnDate           *time.Time      `json:"kubeModifiedOnDate,omitempty"`
-	// KubeStartDate                *time.Time      `json:"kubeStartDate,omitempty"`
+
+	// TimeZone is populated from Location.TimeZone by adjustBookingTimezone rather
+	// than decoded, so callers can read it without walking into the location.
+	TimeZone string `json:"-"`
 }
 
-type CreditOrder struct {
-	Price string `json:"price"`
+// CancelBookingID is the identifier the cancel endpoint expects, which differs
+// from BookingID for franchise bookings.
+func (b *Booking) CancelBookingID() string {
+	if b.IsFranchiseBooking && b.KubeBookingExternalReference != "" {
+		return b.KubeBookingExternalReference
+	}
+	return b.BookingID
 }
 
-type SharedWorkspace struct {
-	UUID       string                   `json:"uuid"`
-	Capacity   int                      `json:"capacity"`
-	TypeName   string                   `json:"__typename"`
-	Location   *SharedWorkspaceLocation `json:"location"`
-	ImageURL   string                   `json:"imageUrl"`
-	CwmSpaceID int                      `json:"cwmSpaceId"`
+// ReservableID is the space identifier the cancel endpoint expects.
+func (b *Booking) ReservableID() string {
+	if b.IsFranchiseBooking && b.SpaceExternalReference != "" {
+		return b.SpaceExternalReference
+	}
+	return b.SpaceID
 }
 
-type SharedWorkspaceLocation struct {
-	KubePropertyID       int     `json:"kubePropertyID"`
-	CwmPropertyID        int     `json:"cwmPropertyID"`
-	AccountType          int     `json:"accountType"`
-	UUID                 string  `json:"uuid"`
-	Name                 string  `json:"name"`
-	Latitude             float64 `json:"latitude"`
-	Longitude            float64 `json:"longitude"`
-	Address              Address `json:"address"`
-	TimeZone             string  `json:"timeZone"`
-	Distance             float64 `json:"distance"`
-	HasThirdPartyDisplay bool    `json:"hasThirdPartyDisplay"`
-	IsMigrated           bool    `json:"isMigrated"`
+type BookingLocation struct {
+	UUID       string  `json:"id"`
+	Name       string  `json:"name"`
+	Address    Address `json:"address"`
+	TimeZone   string  `json:"timeZoneIana"`
+	Latitude   string  `json:"latitude"`
+	Longitude  string  `json:"longitude"`
+	SourceType int     `json:"sourceType"`
+	Type       int     `json:"type"`
+}
+
+type BookingOrder struct {
+	SubTotal   BookingAmount `json:"subTotal"`
+	GrandTotal BookingAmount `json:"grandTotal"`
+}
+
+type BookingAmount struct {
+	Amount        float64 `json:"amount"`
+	Currency      string  `json:"currency"`
+	Symbol        string  `json:"symbol"`
+	CreditCharged float64 `json:"creditCharged"`
+	CreditRatio   float64 `json:"creditRatio"`
 }
 
 type Order struct {

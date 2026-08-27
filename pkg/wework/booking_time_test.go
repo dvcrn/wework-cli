@@ -9,22 +9,23 @@ import (
 // The API reports booking times as location-local wall clock stamped with "Z";
 // a Tokyo booking for the location's 09:00-20:00 opening hours arrives as 09:00Z-20:00Z.
 const tokyoBookingJSON = `{
-	"uuid": "1000001",
-	"startsAt": "2026-09-11T09:00:00.000Z",
-	"endsAt": "2026-09-11T20:00:00.000Z",
-	"modificationDeadline": "2026-09-10T23:00:00.000Z",
-	"creditOrder": {"price": "0"},
+	"bookingId": "1000001",
 	"kubeBookingExternalReference": "2000002",
-	"reservable": {
-		"uuid": "00000000-0000-4000-8000-000000000001",
-		"__typename": "SharedWorkspace",
-		"location": {
-			"uuid": "00000000-0000-4000-8000-000000000002",
-			"name": "Shibuya Scramble Square",
-			"timeZone": "Asia/Tokyo",
-			"accountType": 4,
-			"address": {"line1": "Shibuya Scramble Square 39F, 2-24-12 Shibuya", "city": "Tokyo", "country": "JP"}
-		}
+	"franchiseBookingExtReference": "00000000-0000-4000-8000-000000000003",
+	"isFranchiseBooking": true,
+	"startDate": "2026-09-11T09:00:00.000Z",
+	"endDate": "2026-09-11T20:00:00.000Z",
+	"modificationDeadlineTime": "2026-09-10T23:00:00.000Z",
+	"creditCost": 0,
+	"spaceId": "00000000-0000-4000-8000-000000000001",
+	"spaceExternalReference": "00000000-0000-4000-8000-000000000001",
+	"spaceName": "Daily Desk",
+	"location": {
+		"id": "00000000-0000-4000-8000-000000000002",
+		"name": "Shibuya Scramble Square",
+		"timeZoneIana": "Asia/Tokyo",
+		"sourceType": 4,
+		"address": {"line1": "Shibuya Scramble Square 39F, 2-24-12 Shibuya", "city": "Tokyo", "country": "JP"}
 	}
 }`
 
@@ -60,9 +61,7 @@ func TestAdjustBookingTimezoneKeepsWallClock(t *testing.T) {
 
 func TestAdjustBookingTimezoneKeepsZeroTimes(t *testing.T) {
 	booking := &Booking{
-		Reservable: &SharedWorkspace{
-			Location: &SharedWorkspaceLocation{TimeZone: "Asia/Tokyo"},
-		},
+		Location: &BookingLocation{TimeZone: "Asia/Tokyo"},
 	}
 
 	w := &WeWork{}
@@ -90,5 +89,35 @@ func TestCancelBookingRequestUsesReportedWallClock(t *testing.T) {
 	}
 	if got, want := payload["endTime"], "2026-09-11T20:00:00.000"; got != want {
 		t.Errorf("endTime = %v, want %v", got, want)
+	}
+}
+
+// Franchise bookings are cancelled by their kube reference and space external
+// reference rather than by bookingId/spaceId.
+func TestCancelBookingRequestUsesFranchiseIdentifiers(t *testing.T) {
+	booking := decodeTokyoBooking(t)
+
+	req, err := buildCancelBookingRequest(booking)
+	if err != nil {
+		t.Fatalf("failed to build cancel request: %v", err)
+	}
+
+	if got, want := req.Body["bookingId"], "2000002"; got != want {
+		t.Errorf("bookingId = %v, want %v", got, want)
+	}
+	if got, want := req.Body["reservableId"], "00000000-0000-4000-8000-000000000001"; got != want {
+		t.Errorf("reservableId = %v, want %v", got, want)
+	}
+	if got, want := req.Body["bookingLocationType"], 4; got != want {
+		t.Errorf("bookingLocationType = %v, want %v", got, want)
+	}
+
+	booking.IsFranchiseBooking = false
+	req, err = buildCancelBookingRequest(booking)
+	if err != nil {
+		t.Fatalf("failed to build cancel request: %v", err)
+	}
+	if got, want := req.Body["bookingId"], "1000001"; got != want {
+		t.Errorf("non-franchise bookingId = %v, want %v", got, want)
 	}
 }

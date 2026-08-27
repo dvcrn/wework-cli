@@ -138,20 +138,21 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 				// and endsAt repeat them as RFC 3339 timestamps so consumers do not have
 				// to rely on the separate timezone field to resolve them.
 				type compactBooking struct {
-					UUID         string `json:"uuid"`
-					Date         string `json:"date"`
-					StartTime    string `json:"startTime"`
-					EndTime      string `json:"endTime"`
-					StartsAt     string `json:"startsAt"`
-					EndsAt       string `json:"endsAt"`
-					StartsAtUTC  string `json:"startsAtUTC"`
-					EndsAtUTC    string `json:"endsAtUTC"`
-					TimeZone     string `json:"timezone"`
-					LocationName string `json:"locationName"`
-					LocationUUID string `json:"locationUUID"`
-					Address      string `json:"address"`
-					City         string `json:"city"`
-					Credits      string `json:"credits"`
+					BookingID    string  `json:"bookingId"`
+					UUID         string  `json:"uuid"` // deprecated alias for bookingId
+					Date         string  `json:"date"`
+					StartTime    string  `json:"startTime"`
+					EndTime      string  `json:"endTime"`
+					StartsAt     string  `json:"startsAt"`
+					EndsAt       string  `json:"endsAt"`
+					StartsAtUTC  string  `json:"startsAtUTC"`
+					EndsAtUTC    string  `json:"endsAtUTC"`
+					TimeZone     string  `json:"timezone"`
+					LocationName string  `json:"locationName"`
+					LocationUUID string  `json:"locationUUID"`
+					Address      string  `json:"address"`
+					City         string  `json:"city"`
+					Credits      float64 `json:"credits"`
 				}
 
 				var compact []compactBooking
@@ -159,7 +160,8 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 					startsAt := booking.StartsAt.Time
 					endsAt := booking.EndsAt.Time
 					compact = append(compact, compactBooking{
-						UUID:         booking.UUID,
+						BookingID:    booking.BookingID,
+						UUID:         booking.BookingID,
 						Date:         startsAt.Format("2006-01-02"),
 						StartTime:    startsAt.Format("15:04"),
 						EndTime:      endsAt.Format("15:04"),
@@ -168,11 +170,11 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 						StartsAtUTC:  startsAt.UTC().Format(time.RFC3339),
 						EndsAtUTC:    endsAt.UTC().Format(time.RFC3339),
 						TimeZone:     bookingTimeZone(booking),
-						LocationName: booking.Reservable.Location.Name,
-						LocationUUID: booking.Reservable.Location.UUID,
-						Address:      booking.Reservable.Location.Address.Line1,
-						City:         booking.Reservable.Location.Address.City,
-						Credits:      booking.CreditOrder.Price,
+						LocationName: booking.Location.Name,
+						LocationUUID: booking.Location.UUID,
+						Address:      booking.Location.Address.Line1,
+						City:         booking.Location.Address.City,
+						Credits:      booking.CreditCost,
 					})
 				}
 
@@ -202,20 +204,20 @@ func NewBookingsCommand(authenticate func() (*wework.WeWork, error)) *cobra.Comm
 				if isToday && !past {
 					dateWithDay += " *"
 				}
-				name := booking.Reservable.Location.Name
+				name := booking.Location.Name
 				if len(name) > 28 {
 					name = name[:28]
 				}
-				address := booking.Reservable.Location.Address.Line1
+				address := booking.Location.Address.Line1
 				if len(address) > 38 {
 					address = address[:38]
 				}
-				fmt.Printf("%-20s%-25s%-30s%-40s%s\n",
+				fmt.Printf("%-20s%-25s%-30s%-40s%g\n",
 					dateWithDay,
 					timeRange,
 					name,
 					address,
-					booking.CreditOrder.Price)
+					booking.CreditCost)
 			}
 			return nil
 		},
@@ -234,8 +236,8 @@ func bookingTimeZone(booking *wework.Booking) string {
 	if booking.TimeZone != "" {
 		return booking.TimeZone
 	}
-	if booking.Reservable != nil && booking.Reservable.Location != nil {
-		return booking.Reservable.Location.TimeZone
+	if booking.Location != nil {
+		return booking.Location.TimeZone
 	}
 	return ""
 }

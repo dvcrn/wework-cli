@@ -43,15 +43,15 @@ func (w *WeWorkCalendar) GenerateCalendar(outputPath string) error {
 
 	// Create events for each booking
 	for _, booking := range allBookings {
-		event := cal.AddEvent(booking.UUID)
-		event.SetSummary(fmt.Sprintf("WeWork: %s", booking.Reservable.Location.Name))
+		event := cal.AddEvent(booking.BookingID)
+		event.SetSummary(fmt.Sprintf("WeWork: %s", booking.Location.Name))
 
-		event.SetProperty(ics.ComponentProperty("DTSTART;TZID="+booking.Reservable.Location.TimeZone),
+		event.SetProperty(ics.ComponentProperty("DTSTART;TZID="+booking.Location.TimeZone),
 			booking.StartsAt.Format("20060102"))
-		event.SetProperty(ics.ComponentProperty("DTEND;TZID="+booking.Reservable.Location.TimeZone),
+		event.SetProperty(ics.ComponentProperty("DTEND;TZID="+booking.Location.TimeZone),
 			booking.StartsAt.Format("20060102"))
 
-		event.SetProperty(ics.ComponentProperty("TZID"), booking.Reservable.Location.TimeZone)
+		event.SetProperty(ics.ComponentProperty("TZID"), booking.Location.TimeZone)
 
 		// Set Microsoft and Apple specific properties
 		event.SetProperty("X-MICROSOFT-CDO-ALLDAYEVENT", "TRUE")
@@ -66,16 +66,16 @@ func (w *WeWorkCalendar) GenerateCalendar(outputPath string) error {
 		event.SetProperty("URL", "https://members.wework.com/workplaceone/content2/your-bookings")
 
 		// Set location
-		event.SetLocation(booking.Reservable.Location.Address.Line1)
+		event.SetLocation(booking.Location.Address.Line1)
 
 		// Set description
 		description := fmt.Sprintf(
 			"WeWork Booking Details:\nLocation: %s\nAddress: %s\nTime: %s - %s\nBooking ID: %s",
-			booking.Reservable.Location.Name,
-			booking.Reservable.Location.Address.Line1,
+			booking.Location.Name,
+			booking.Location.Address.Line1,
 			booking.StartsAt.Format("03:04 PM"),
 			booking.EndsAt.Format("03:04 PM"),
-			booking.UUID,
+			booking.BookingID,
 		)
 		event.SetDescription(description)
 	}

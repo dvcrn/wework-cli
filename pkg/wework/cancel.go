@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -21,8 +20,8 @@ type CancelBookingResponse struct {
 	Raw json.RawMessage `json:"raw"`
 }
 
-func (w *WeWork) BuildCancelBookingRequest(bookingUUID string) (*CancelBookingRequest, error) {
-	booking, err := w.findUpcomingBooking(bookingUUID)
+func (w *WeWork) BuildCancelBookingRequest(bookingID string) (*CancelBookingRequest, error) {
+	booking, err := w.findUpcomingBooking(bookingID)
 	if err != nil {
 		return nil, err
 	}
@@ -30,8 +29,8 @@ func (w *WeWork) BuildCancelBookingRequest(bookingUUID string) (*CancelBookingRe
 	return buildCancelBookingRequest(booking)
 }
 
-func (w *WeWork) CancelBooking(bookingUUID string) (*CancelBookingResponse, error) {
-	req, err := w.BuildCancelBookingRequest(bookingUUID)
+func (w *WeWork) CancelBooking(bookingID string) (*CancelBookingResponse, error) {
+	req, err := w.BuildCancelBookingRequest(bookingID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,51 +38,44 @@ func (w *WeWork) CancelBooking(bookingUUID string) (*CancelBookingResponse, erro
 	return w.cancelBooking(req)
 }
 
-func (w *WeWork) findUpcomingBooking(bookingUUID string) (*Booking, error) {
+func (w *WeWork) findUpcomingBooking(bookingID string) (*Booking, error) {
 	bookings, err := w.GetUpcomingBookings()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get upcoming bookings: %w", err)
 	}
 
 	for _, booking := range bookings {
-		if booking.UUID == bookingUUID {
+		if booking.BookingID == bookingID {
 			return booking, nil
 		}
 	}
 
-	return nil, fmt.Errorf("upcoming booking %s not found", bookingUUID)
+	return nil, fmt.Errorf("upcoming booking %s not found", bookingID)
 }
 
 func buildCancelBookingRequest(booking *Booking) (*CancelBookingRequest, error) {
 	if booking == nil {
 		return nil, fmt.Errorf("booking cannot be nil")
 	}
-	if booking.Reservable == nil {
-		return nil, fmt.Errorf("booking %s is missing reservable details", booking.UUID)
-	}
-	if booking.Reservable.Location == nil {
-		return nil, fmt.Errorf("booking %s is missing location details", booking.UUID)
+	if booking.Location == nil {
+		return nil, fmt.Errorf("booking %s is missing location details", booking.BookingID)
 	}
 
-	bookingID := booking.KubeBookingExternalReference
-	if bookingID == "" {
-		bookingID = booking.UUID
-	}
-
+	bookingID := booking.CancelBookingID()
 	startTime := formatCancelTime(booking.StartsAt.Time)
 	endTime := formatCancelTime(booking.EndsAt.Time)
-	location := booking.Reservable.Location
-	reservableID := booking.Reservable.UUID
+	location := booking.Location
+	reservableID := booking.ReservableID()
 
 	cancelData := map[string]any{
 		"bookingId":           bookingID,
-		"bookingLocationType": location.AccountType,
-		"creditsUsed":         creditsUsed(booking),
+		"bookingLocationType": location.SourceType,
+		"creditsUsed":         booking.CreditCost,
 		"startTime":           startTime,
 		"endTime":             endTime,
 		"locationId":          location.UUID,
 		"reservableId":        reservableID,
-		"isBookingApprovalOn": booking.IsBookingApprovalOn,
+		"isBookingApprovalOn": booking.IsPendingApproval,
 		"bookingType":         4,
 		"spaceId":             reservableID,
 		"cancellationNote":    "",
@@ -136,17 +128,6 @@ func (w *WeWork) cancelBooking(cancelReq *CancelBookingRequest) (*CancelBookingR
 // as-is rather than converted to UTC.
 func formatCancelTime(t time.Time) string {
 	return t.Format("2006-01-02T15:04:05.000")
-}
-
-func creditsUsed(booking *Booking) float64 {
-	if booking.CreditOrder == nil {
-		return 0
-	}
-	credits, err := strconv.ParseFloat(booking.CreditOrder.Price, 64)
-	if err != nil {
-		return 0
-	}
-	return credits
 }
 
 func formatCancelLocationAddress(address Address) string {

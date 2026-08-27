@@ -277,34 +277,45 @@ func (w *WeWork) GetAvailableSpacesByLatLong(t time.Time, locationUUIDs []string
 	return w.getAvailableSpacesRequest(t, locationUUIDs, newGeoCoords(userLatitude, userLongitude, 0.13))
 }
 
-func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
-	url := "https://members.wework.com/workplaceone/api/common-booking/upcoming-bookings"
+// Booking list platform types accepted by get-app-upcoming-bookings.
+const (
+	bookingPlatformAll = iota
+	bookingPlatformWeb
+	bookingPlatformIOS
+	bookingPlatformAndroid
+)
+
+// getAppBookings fetches reservations from get-app-upcoming-bookings, which serves
+// both upcoming and past bookings off the isPastBooking flag. Blank start/end dates
+// mean unbounded; the endpoint expects YYYY-MM-DD, not RFC 3339.
+func (w *WeWork) getAppBookings(isPast bool, startDate, endDate string) ([]*Booking, error) {
+	params := url.Values{}
+	params.Add("isPastBooking", strconv.FormatBool(isPast))
+	params.Add("platFormType", strconv.Itoa(bookingPlatformWeb))
+	params.Add("startDate", startDate)
+	params.Add("endDate", endDate)
+
+	url := "https://members.wework.com/workplaceone/api/common-booking/get-app-upcoming-bookings?" + params.Encode()
 	resp, err := w.doRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// bodyBuf := new(bytes.Buffer)
-	// bodyBuf.ReadFrom(resp.Body)
-
-	// reader := bytes.NewReader(bodyBuf.Bytes())
-
-	// buf := new(bytes.Buffer)
-	// buf.ReadFrom(reader)
-	// fmt.Println(buf.String())
-
-	// reader.Seek(0, 0)
-	var result UpcomingBookingsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	var bookings []*Booking
+	if err := json.NewDecoder(resp.Body).Decode(&bookings); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %v", err)
 	}
 
-	for _, booking := range result.Bookings {
+	for _, booking := range bookings {
 		w.adjustBookingTimezone(booking)
 	}
 
-	return result.Bookings, nil
+	return bookings, nil
+}
+
+func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
+	return w.getAppBookings(false, "", "")
 }
 
 // adjustBookingTimezone anchors a booking's times in its location's timezone.
@@ -316,10 +327,10 @@ func (w *WeWork) GetUpcomingBookings() ([]*Booking, error) {
 // the location timezone would shift them by the offset (yielding 18:00-05:00), so
 // the wall clock is kept and re-anchored in the location's zone instead.
 func (w *WeWork) adjustBookingTimezone(booking *Booking) {
-	if booking.Reservable == nil || booking.Reservable.Location == nil {
+	if booking.Location == nil {
 		return
 	}
-	timezone := booking.Reservable.Location.TimeZone
+	timezone := booking.Location.TimeZone
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		return
@@ -351,27 +362,7 @@ func (w *WeWork) GetPastBookings() ([]*Booking, error) {
 }
 
 func (w *WeWork) GetPastBookingsWithDates(startDate, endDate time.Time) ([]*Booking, error) {
-	params := url.Values{}
-	params.Add("startDate", startDate.UTC().Format(time.RFC3339))
-	params.Add("endDate", endDate.UTC().Format(time.RFC3339))
-
-	url := "https://members.wework.com/workplaceone/api/common-booking/past-bookings?" + params.Encode()
-	resp, err := w.doRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var result UpcomingBookingsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %v", err)
-	}
-
-	for _, booking := range result.Bookings {
-		w.adjustBookingTimezone(booking)
-	}
-
-	return result.Bookings, nil
+	return w.getAppBookings(true, startDate.Format(time.DateOnly), endDate.Format(time.DateOnly))
 }
 
 func (w *WeWork) GetBootstrap() (*AppBootstrapResponse, error) {
