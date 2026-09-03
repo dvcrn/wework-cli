@@ -506,26 +506,69 @@ func getBookingSpaceID(space *Workspace) string {
 	}
 }
 
-func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
+// bookingSlot is the granularity the booking backend accepts for start and end
+// times; anything off the boundary is rejected with "End Time value must be
+// followed 30 minute slots."
+const bookingSlot = 30 * time.Minute
+
+// bookingWindow returns the local start and end of a full-day booking at space,
+// on the calendar date that date falls on in the location's timezone.
+//
+// The end is floored to a 30-minute slot so a location reporting a 23:59 close
+// books until 23:30 rather than being rejected, and never past the advertised
+// closing time.
+func bookingWindow(date time.Time, space *Workspace) (start, end time.Time, err error) {
+	if space == nil {
+		return time.Time{}, time.Time{}, fmt.Errorf("workspace cannot be nil")
+	}
+
 	loc, err := time.LoadLocation(space.Location.TimeZone)
 	if err != nil {
-		return nil, err
+		return time.Time{}, time.Time{}, err
 	}
 
 	dateInTz := date.In(loc)
-	// Parse open and close times (e.g., "08:30" and "20:00")
-	openHour, openMin := 8, 30 // Default values
-	if len(space.OpenTime) >= 5 {
-		fmt.Sscanf(space.OpenTime, "%d:%d", &openHour, &openMin)
-	}
-	closeHour, closeMin := 20, 0 // Default values
-	if len(space.CloseTime) >= 5 {
-		fmt.Sscanf(space.CloseTime, "%d:%d", &closeHour, &closeMin)
+	openHour, openMin := parseOpeningTime(space.OpenTime, 8, 30)
+	closeHour, closeMin := parseOpeningTime(space.CloseTime, 20, 0)
+
+	start = time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
+	end = time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
+	end = floorToBookingSlot(end)
+
+	if !end.After(start) {
+		return time.Time{}, time.Time{}, fmt.Errorf("location %s has no bookable window on %s: open %s, close %s", space.Location.Name, dateInTz.Format("2006-01-02"), space.OpenTime, space.CloseTime)
 	}
 
-	// Create start and end times in local timezone
-	startLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
-	endLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
+	return start, end, nil
+}
+
+// parseOpeningTime reads an "HH:MM" opening hour, falling back to the given
+// defaults when the API reports something else. The hour is not zero-padded at
+// every location, so "9:00" has to parse as readily as "09:00".
+func parseOpeningTime(value string, defaultHour, defaultMin int) (hour, min int) {
+	if n, err := fmt.Sscanf(value, "%d:%d", &hour, &min); err != nil || n != 2 {
+		return defaultHour, defaultMin
+	}
+	return hour, min
+}
+
+// floorToBookingSlot rounds t down to the previous 30-minute boundary, keeping
+// the result on the same wall-clock day as t.
+func floorToBookingSlot(t time.Time) time.Time {
+	remainder := time.Duration(t.Minute()%int(bookingSlot/time.Minute))*time.Minute +
+		time.Duration(t.Second())*time.Second +
+		time.Duration(t.Nanosecond())
+	if remainder == 0 {
+		return t
+	}
+	return t.Add(-remainder)
+}
+
+func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
+	startLocal, endLocal, err := bookingWindow(date, space)
+	if err != nil {
+		return nil, err
+	}
 
 	// Convert to UTC
 	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
@@ -543,17 +586,17 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 		"TriggerCalendarEvent": true,
 		"Notes":                nil,
 		"MailData": map[string]any{
-			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
-			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
-			"endTimeFormatted":   fmt.Sprintf("%s PM", space.CloseTime),
+			"dayFormatted":       startLocal.Format("Monday, January 2nd"),
+			"startTimeFormatted": fmt.Sprintf("%s AM", startLocal.Format("15:04")),
+			"endTimeFormatted":   fmt.Sprintf("%s PM", endLocal.Format("15:04")),
 			"floorAddress":       "",
 			"locationAddress":    space.Location.Address.Line1,
 			"creditsUsed":        "2",
 			"Capacity":           "1",
 			"TimezoneUsed":       fmt.Sprintf("GMT %s", space.Location.TimezoneOffset),
 			"TimezoneIana":       space.Location.TimeZone,
-			"startDateTime":      fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
-			"endDateTime":        fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
+			"startDateTime":      startLocal.Format("2006-01-02 15:04"),
+			"endDateTime":        endLocal.Format("2006-01-02 15:04"),
 			"locationName":       space.Location.Name,
 			"locationCity":       space.Location.Address.City,
 			"locationCountry":    space.Location.Address.Country,
@@ -584,36 +627,14 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 }
 
 func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteResponse) (*BookingResponse, error) {
-	loc, err := time.LoadLocation(space.Location.TimeZone)
+	startLocal, endLocal, err := bookingWindow(date, space)
 	if err != nil {
 		return nil, err
 	}
 
-	dateInTz := date.In(loc)
-	// Parse open and close times (e.g., "08:30" and "20:00")
-	openHour, openMin := 8, 30 // Default values
-	if len(space.OpenTime) >= 5 {
-		fmt.Sscanf(space.OpenTime, "%d:%d", &openHour, &openMin)
-	}
-	closeHour, closeMin := 20, 0 // Default values
-	if len(space.CloseTime) >= 5 {
-		fmt.Sscanf(space.CloseTime, "%d:%d", &closeHour, &closeMin)
-	}
-
-	// Create start and end times in local timezone
-	startLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
-	endLocal := time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
-
 	// Convert to UTC
 	startTime := startLocal.UTC().Format("2006-01-02T15:04:05Z")
 	endTime := endLocal.UTC().Format("2006-01-02T15:04:05Z")
-
-	// Note: Removing the date adjustment logic that was causing "already booked" errors
-	// The API should handle far-future dates appropriately
-	if daysUntilBooking := time.Until(dateInTz); daysUntilBooking > 30*24*time.Hour {
-		// Don't print here - let the caller handle the warning
-		// The original date adjustment was causing issues by trying to book past dates
-	}
 
 	// Use LocationType-specific logic for booking SpaceID
 	bookingSpaceID := getBookingSpaceID(space)
@@ -627,17 +648,17 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		"TriggerCalendarEvent": true,
 		"Notes":                nil,
 		"MailData": map[string]any{
-			"dayFormatted":       dateInTz.Format("Monday, January 2nd"),
-			"startTimeFormatted": fmt.Sprintf("%s AM", space.OpenTime),
-			"endTimeFormatted":   fmt.Sprintf("%s PM", space.CloseTime),
+			"dayFormatted":       startLocal.Format("Monday, January 2nd"),
+			"startTimeFormatted": fmt.Sprintf("%s AM", startLocal.Format("15:04")),
+			"endTimeFormatted":   fmt.Sprintf("%s PM", endLocal.Format("15:04")),
 			"floorAddress":       "",
 			"locationAddress":    space.Location.Address.Line1,
 			"creditsUsed":        "0",
 			"Capacity":           "1",
 			"TimezoneUsed":       fmt.Sprintf("GMT %s", space.Location.TimezoneOffset),
 			"TimezoneIana":       space.Location.TimeZone,
-			"startDateTime":      fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.OpenTime),
-			"endDateTime":        fmt.Sprintf("%s %s", dateInTz.Format("2006-01-02"), space.CloseTime),
+			"startDateTime":      startLocal.Format("2006-01-02 15:04"),
+			"endDateTime":        endLocal.Format("2006-01-02 15:04"),
 			"locationName":       space.Location.Name,
 			"locationCity":       space.Location.Address.City,
 			"locationCountry":    space.Location.Address.Country,
