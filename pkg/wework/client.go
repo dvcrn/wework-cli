@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -686,7 +687,39 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		return nil, fmt.Errorf("failed to decode booking response: %v", err)
 	}
 
+	if err := validateBookingResponse(&result); err != nil {
+		return nil, err
+	}
+
 	return &result, nil
+}
+
+// bookingStatusSuccess is the only BookingStatus the API reports for a
+// confirmed reservation; anything else means the booking was not made.
+const bookingStatusSuccess = "BookingSuccess"
+
+// validateBookingResponse rejects a booking the API declined. The endpoint
+// answers 200 even when it refuses the reservation, reporting the refusal in
+// the body instead of the status code.
+func validateBookingResponse(result *BookingResponse) error {
+	if result.BookingStatus == bookingStatusSuccess && len(result.Errors) == 0 && result.ReservationID != "" {
+		return nil
+	}
+
+	status := result.BookingStatus
+	if status == "" {
+		status = "unknown"
+	}
+
+	msg := fmt.Sprintf("booking was not confirmed (status %s)", status)
+	if result.BookingStatus == bookingStatusSuccess && result.ReservationID == "" {
+		msg += ": no reservation ID returned"
+	}
+	if len(result.Errors) > 0 {
+		msg += ": " + strings.Join(result.Errors, "; ")
+	}
+
+	return errors.New(msg)
 }
 
 func (w *WeWork) GetCityDetails() ([]*CityDetailsResponse, error) {
