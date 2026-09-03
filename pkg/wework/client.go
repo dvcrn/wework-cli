@@ -525,7 +525,7 @@ func bookingWindow(date time.Time, space *Workspace) (start, end time.Time, err 
 
 	loc, err := time.LoadLocation(space.Location.TimeZone)
 	if err != nil {
-		return time.Time{}, time.Time{}, err
+		return time.Time{}, time.Time{}, fmt.Errorf("failed to load timezone %s: %w", space.Location.TimeZone, err)
 	}
 
 	y, m, d := date.Date()
@@ -568,7 +568,7 @@ func floorToBookingSlot(t time.Time) time.Time {
 func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
 	startLocal, endLocal, err := bookingWindow(date, space)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to determine booking window: %w", err)
 	}
 
 	// Convert to UTC
@@ -587,9 +587,9 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 		"TriggerCalendarEvent": true,
 		"Notes":                nil,
 		"MailData": map[string]any{
-			"dayFormatted":       startLocal.Format("Monday, January 2nd"),
-			"startTimeFormatted": fmt.Sprintf("%s AM", startLocal.Format("15:04")),
-			"endTimeFormatted":   fmt.Sprintf("%s PM", endLocal.Format("15:04")),
+			"dayFormatted":       startLocal.Format("Monday, January 2"),
+			"startTimeFormatted": startLocal.Format("03:04 PM"),
+			"endTimeFormatted":   endLocal.Format("03:04 PM"),
 			"floorAddress":       "",
 			"locationAddress":    space.Location.Address.Line1,
 			"creditsUsed":        "2",
@@ -630,7 +630,7 @@ func (w *WeWork) getBookingQuote(date time.Time, space *Workspace) (*QuoteRespon
 func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteResponse) (*BookingResponse, error) {
 	startLocal, endLocal, err := bookingWindow(date, space)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to determine booking window: %w", err)
 	}
 
 	// Convert to UTC
@@ -649,9 +649,9 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 		"TriggerCalendarEvent": true,
 		"Notes":                nil,
 		"MailData": map[string]any{
-			"dayFormatted":       startLocal.Format("Monday, January 2nd"),
-			"startTimeFormatted": fmt.Sprintf("%s AM", startLocal.Format("15:04")),
-			"endTimeFormatted":   fmt.Sprintf("%s PM", endLocal.Format("15:04")),
+			"dayFormatted":       startLocal.Format("Monday, January 2"),
+			"startTimeFormatted": startLocal.Format("03:04 PM"),
+			"endTimeFormatted":   endLocal.Format("03:04 PM"),
 			"floorAddress":       "",
 			"locationAddress":    space.Location.Address.Line1,
 			"creditsUsed":        "0",
@@ -688,7 +688,7 @@ func (w *WeWork) createBooking(date time.Time, space *Workspace, quote *QuoteRes
 	}
 
 	if err := validateBookingResponse(&result); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("booking validation failed: %w", err)
 	}
 
 	return &result, nil
@@ -702,6 +702,10 @@ const bookingStatusSuccess = "BookingSuccess"
 // answers 200 even when it refuses the reservation, reporting the refusal in
 // the body instead of the status code.
 func validateBookingResponse(result *BookingResponse) error {
+	if result == nil {
+		return errors.New("booking response is nil")
+	}
+
 	if result.BookingStatus == bookingStatusSuccess && len(result.Errors) == 0 && result.ReservationID != "" {
 		return nil
 	}

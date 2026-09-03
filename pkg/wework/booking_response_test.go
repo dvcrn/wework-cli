@@ -50,6 +50,12 @@ func TestValidateBookingResponse(t *testing.T) {
 		},
 	}
 
+	t.Run("nil response", func(t *testing.T) {
+		if err := validateBookingResponse(nil); err == nil {
+			t.Fatal("validateBookingResponse(nil) = nil, want an error")
+		}
+	})
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var result BookingResponse
