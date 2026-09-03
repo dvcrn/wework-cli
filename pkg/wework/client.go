@@ -513,7 +513,7 @@ func getBookingSpaceID(space *Workspace) string {
 const bookingSlot = 30 * time.Minute
 
 // bookingWindow returns the local start and end of a full-day booking at space,
-// on the calendar date that date falls on in the location's timezone.
+// using the calendar date components of date anchored in the location's timezone.
 //
 // The end is floored to a 30-minute slot so a location reporting a 23:59 close
 // books until 23:30 rather than being rejected, and never past the advertised
@@ -528,16 +528,16 @@ func bookingWindow(date time.Time, space *Workspace) (start, end time.Time, err 
 		return time.Time{}, time.Time{}, err
 	}
 
-	dateInTz := date.In(loc)
+	y, m, d := date.Date()
 	openHour, openMin := parseOpeningTime(space.OpenTime, 8, 30)
 	closeHour, closeMin := parseOpeningTime(space.CloseTime, 20, 0)
 
-	start = time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), openHour, openMin, 0, 0, loc)
-	end = time.Date(dateInTz.Year(), dateInTz.Month(), dateInTz.Day(), closeHour, closeMin, 0, 0, loc)
+	start = time.Date(y, m, d, openHour, openMin, 0, 0, loc)
+	end = time.Date(y, m, d, closeHour, closeMin, 0, 0, loc)
 	end = floorToBookingSlot(end)
 
 	if !end.After(start) {
-		return time.Time{}, time.Time{}, fmt.Errorf("location %s has no bookable window on %s: open %s, close %s", space.Location.Name, dateInTz.Format("2006-01-02"), space.OpenTime, space.CloseTime)
+		return time.Time{}, time.Time{}, fmt.Errorf("location %s has no bookable window on %s: open %s, close %s", space.Location.Name, start.Format("2006-01-02"), space.OpenTime, space.CloseTime)
 	}
 
 	return start, end, nil

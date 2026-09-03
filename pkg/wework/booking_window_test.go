@@ -53,6 +53,28 @@ func TestBookingWindow(t *testing.T) {
 			wantEndUTC: "2026-09-12T02:30:00Z",
 		},
 		{
+			// Midnight in UTC or a positive offset must not shift the target
+			// calendar date when booking a location in a negative offset.
+			name:       "midnight UTC date preserves calendar day in negative offset",
+			timezone:   "America/Argentina/Buenos_Aires",
+			openTime:   "06:00",
+			closeTime:  "23:59",
+			date:       "2026-09-11T00:00:00Z",
+			wantStart:  "2026-09-11T06:00:00-03:00",
+			wantEnd:    "2026-09-11T23:30:00-03:00",
+			wantEndUTC: "2026-09-12T02:30:00Z",
+		},
+		{
+			name:       "midnight positive offset date preserves calendar day in negative offset",
+			timezone:   "America/Argentina/Buenos_Aires",
+			openTime:   "06:00",
+			closeTime:  "23:59",
+			date:       "2026-09-11T00:00:00+09:00",
+			wantStart:  "2026-09-11T06:00:00-03:00",
+			wantEnd:    "2026-09-11T23:30:00-03:00",
+			wantEndUTC: "2026-09-12T02:30:00Z",
+		},
+		{
 			name:       "18:00 close is already on a boundary",
 			timezone:   "Asia/Tokyo",
 			openTime:   "08:30",
